@@ -37,3 +37,5 @@ out/
 tsconfig.tsbuildinfo
 bun.lockb
 pnpm-lock.yaml
+.threads
+.threads/
