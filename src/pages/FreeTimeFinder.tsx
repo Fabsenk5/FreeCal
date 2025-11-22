@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { MOCK_USERS, MOCK_EVENTS } from '@/data/mockData';
-import { getCalendarDays, getMonthName, formatDate, formatTime } from '@/utils/dateUtils';
+import { useEvents } from '@/hooks/useEvents';
+import { useRelationships } from '@/hooks/useRelationships';
+import { useAuth } from '@/contexts/AuthContext';
+import { getCalendarDays, getMonthName, formatDate } from '@/utils/dateUtils';
 import { cn } from '@/lib/utils';
-import { Calendar as CalendarIcon, List } from 'lucide-react';
+import { Calendar as CalendarIcon, List, Loader2 } from 'lucide-react';
 
 type ViewMode = 'calendar' | 'list';
 
@@ -19,44 +21,62 @@ export function FreeTimeFinder() {
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear] = useState(new Date().getFullYear());
-  const [selectedUsers, setSelectedUsers] = useState<string[]>(['user-1']);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+
+  const { events, loading: eventsLoading } = useEvents();
+  const { relationships, loading: relLoading } = useRelationships();
+  const { profile, user } = useAuth();
 
   const days = getCalendarDays(selectedYear, selectedMonth);
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const toggleUser = (userId: string) => {
-    setSelectedUsers(prev =>
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
+    setSelectedUsers((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
   };
 
   const isDateFree = (date: Date | null): boolean => {
     if (!date) return false;
-    
-    const dateEvents = MOCK_EVENTS.filter(event => {
-      const eventDate = new Date(event.startDate);
-      return (
+    if (selectedUsers.length === 0) return false;
+
+    // Check if any selected user has events on this date
+    const dateEvents = events.filter((event) => {
+      const eventDate = new Date(event.start_time);
+      const isSameDate =
         eventDate.getDate() === date.getDate() &&
         eventDate.getMonth() === date.getMonth() &&
-        eventDate.getFullYear() === date.getFullYear() &&
-        selectedUsers.includes(event.userId)
-      );
+        eventDate.getFullYear() === date.getFullYear();
+
+      // Check if event creator or any attendee is in selected users
+      const isUserInvolved =
+        selectedUsers.includes(event.user_id) ||
+        event.attendees?.some((attendeeId) => selectedUsers.includes(attendeeId));
+
+      return isSameDate && isUserInvolved;
     });
 
     return dateEvents.length === 0;
   };
 
-  // Generate mock free time slots
+  // Generate free time slots
   const freeTimeSlots: FreeTimeSlot[] = days
-    .filter(date => date && isDateFree(date))
-    .slice(0, 10)
-    .map(date => ({
+    .filter((date) => date && isDateFree(date))
+    .slice(0, 20)
+    .map((date) => ({
       date: date!,
       startTime: '9:00 AM',
       endTime: '5:00 PM',
     }));
+
+  if (eventsLoading || relLoading) {
+    return (
+      <div className="flex flex-col h-screen bg-background items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -117,25 +137,56 @@ export function FreeTimeFinder() {
           <div className="space-y-2">
             <Label>Check availability for</Label>
             <div className="space-y-2">
-              {MOCK_USERS.map(user => (
+              {/* Current user */}
+              {profile && user && (
                 <button
-                  key={user.id}
                   type="button"
                   onClick={() => toggleUser(user.id)}
                   className="w-full flex items-center gap-3 p-3 bg-card rounded-lg hover:bg-accent transition-colors"
                 >
                   <div
                     className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: `hsl(var(--user-${user.color}))` }}
+                    style={{ backgroundColor: profile.calendar_color }}
                   />
-                  <span className="flex-1 text-left text-sm">{user.name}</span>
+                  <span className="flex-1 text-left text-sm">
+                    {profile.display_name} (You)
+                  </span>
                   {selectedUsers.includes(user.id) && (
                     <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
                       ✓
                     </div>
                   )}
                 </button>
+              )}
+
+              {/* Relationships */}
+              {relationships.map((rel) => (
+                <button
+                  key={rel.id}
+                  type="button"
+                  onClick={() => toggleUser(rel.profile.id)}
+                  className="w-full flex items-center gap-3 p-3 bg-card rounded-lg hover:bg-accent transition-colors"
+                >
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: rel.profile.calendar_color }}
+                  />
+                  <span className="flex-1 text-left text-sm">
+                    {rel.profile.display_name}
+                  </span>
+                  {selectedUsers.includes(rel.profile.id) && (
+                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
+                      ✓
+                    </div>
+                  )}
+                </button>
               ))}
+
+              {relationships.length === 0 && !profile && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No relationships yet. Add connections in your profile.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -153,8 +204,11 @@ export function FreeTimeFinder() {
             <div className="bg-card rounded-xl p-4 shadow-sm">
               {/* Week day headers */}
               <div className="grid grid-cols-7 gap-1 mb-3">
-                {weekDays.map(day => (
-                  <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
+                {weekDays.map((day) => (
+                  <div
+                    key={day}
+                    className="text-center text-xs font-medium text-muted-foreground py-2"
+                  >
                     {day}
                   </div>
                 ))}
@@ -177,7 +231,8 @@ export function FreeTimeFinder() {
                       key={date.toISOString()}
                       className={cn(
                         'aspect-square rounded-lg p-1 flex items-center justify-center transition-all relative text-sm font-medium',
-                        isFree && 'bg-[hsl(var(--free-time)_/_0.2)] text-[hsl(var(--free-time))]',
+                        isFree &&
+                          'bg-[hsl(var(--free-time)_/_0.2)] text-[hsl(var(--free-time))]',
                         !isFree && 'text-muted-foreground',
                         isToday && 'border-2 border-primary'
                       )}
@@ -203,9 +258,13 @@ export function FreeTimeFinder() {
                   <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3">
                     <span className="text-3xl">🗓️</span>
                   </div>
-                  <p className="text-sm font-medium text-foreground mb-1">No free time found</p>
+                  <p className="text-sm font-medium text-foreground mb-1">
+                    No free time found
+                  </p>
                   <p className="text-xs text-muted-foreground text-center">
-                    Try selecting different users or a different month
+                    {selectedUsers.length === 0
+                      ? 'Select users to check availability'
+                      : 'Try selecting different users or a different month'}
                   </p>
                 </div>
               ) : (
@@ -223,9 +282,6 @@ export function FreeTimeFinder() {
                           {slot.startTime} - {slot.endTime}
                         </p>
                       </div>
-                      <button className="px-3 py-1 bg-primary text-primary-foreground rounded-md text-xs font-medium hover:bg-primary/90 transition-colors">
-                        Book
-                      </button>
                     </div>
                   </div>
                 ))
@@ -238,8 +294,9 @@ export function FreeTimeFinder() {
         <div className="mt-6 bg-muted/50 rounded-xl p-4">
           <h3 className="text-sm font-semibold mb-2">💡 How it works</h3>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Free Time Finder shows you available time slots when all selected people are free.
-            Select multiple people to find overlapping availability for meetings or events.
+            Free Time Finder shows you available time slots when all selected people are
+            free. Select multiple people to find overlapping availability for meetings or
+            events.
           </p>
         </div>
       </div>

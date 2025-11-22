@@ -1,6 +1,9 @@
 import { createBrowserRouter } from "react-router-dom";
 import Index from "./pages/index";
 import NotFound from "./pages/NotFound";
+import { Login } from "./pages/Login";
+import { Signup } from "./pages/Signup";
+import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 
 const routes = [
   {
@@ -8,7 +11,19 @@ const routes = [
     children: [
       {
         index: true,
-        element: <Index />,
+        element: (
+          <ProtectedRoute>
+            <Index />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "login",
+        element: <Login />,
+      },
+      {
+        path: "signup",
+        element: <Signup />,
       },
       {
         path: "*",
@@ -18,5 +33,5 @@ const routes = [
   },
 ];
 
-const basename = (window as any).__APP_BASENAME__ || "/";
+const basename = (window as Window & { __APP_BASENAME__?: string }).__APP_BASENAME__ || "/";
 export const router = createBrowserRouter(routes, { basename });
