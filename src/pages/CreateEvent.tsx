@@ -19,107 +19,152 @@ export function CreateEvent() {
   const { user, profile } = useAuth();
   const { relationships, loading: relLoading } = useRelationships();
 
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [eventColor, setEventColor] = useState<string>(profile?.calendar_color || 'hsl(217, 91%, 60%)');
+  const [notes, setNotes] = useState<string>('');
+  const [attendees, setAttendees] = useState<string[]>([]);
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [isAllDay, setIsAllDay] = useState(false);
-  const [hasRecurrence, setHasRecurrence] = useState(false);
-  const [recurrenceType, setRecurrenceType] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('daily');
+  const [recurrenceType, setRecurrenceType] = useState<'daily' | 'weekly' | 'monthly' | 'custom' | 'none'>('none');
   const [recurrenceInterval, setRecurrenceInterval] = useState(1);
   const [recurrenceDays, setRecurrenceDays] = useState<string[]>([]);
-  const [selectedAttendees, setSelectedAttendees] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !profile) return;
+  const handleSave = async () => {
+    if (!title.trim()) {
+      toast.error('Please enter an event title');
+      return;
+    }
 
-    setLoading(true);
+    if (!startDate) {
+      toast.error('Please select a start date');
+      return;
+    }
+
+    if (!user) {
+      toast.error('You must be signed in to create events');
+      return;
+    }
+
+    setSaving(true);
 
     try {
-      // Construct datetime strings
       const startDateTime = isAllDay
-        ? `${startDate}T00:00:00Z`
-        : `${startDate}T${startTime}:00Z`;
-      const endDateTime = isAllDay
-        ? `${endDate}T23:59:59Z`
-        : `${endDate}T${endTime}:00Z`;
+        ? new Date(startDate).toISOString()
+        : new Date(`${startDate}T${startTime}`).toISOString();
 
-      // Sanitize form data
-      const eventData: EventInsert = {
+      const endDateTime = isAllDay
+        ? new Date(endDate || startDate).toISOString()
+        : new Date(`${endDate || startDate}T${endTime || startTime}`).toISOString();
+
+      const eventData = {
         user_id: user.id,
-        title,
+        title: title.trim(),
+        description: notes.trim() || null,
         start_time: startDateTime,
         end_time: endDateTime,
         is_all_day: isAllDay,
-        color: profile.calendar_color,
-        recurrence_type: hasRecurrence ? recurrenceType : 'none',
+        color: eventColor,
+        recurrence_type: recurrenceType,
+        recurrence_days: recurrenceDays.length > 0 ? recurrenceDays : null,
+        recurrence_interval: recurrenceType !== 'none' ? recurrenceInterval : null,
+        recurrence_end_date: null,
+        imported_from_device: false,
       };
 
-      // Add optional fields only if they have values
-      if (description) eventData.description = description;
-      if (hasRecurrence && recurrenceInterval) eventData.recurrence_interval = recurrenceInterval;
-      if (hasRecurrence && recurrenceDays.length > 0) eventData.recurrence_days = recurrenceDays;
+      if (editingEventId) {
+        const { error: updateError } = await supabase
+          .from('events')
+          .update(eventData)
+          .eq('id', editingEventId);
 
-      // Create event
-      const { data: event, error: eventError } = await supabase
-        .from('events')
-        .insert(eventData)
-        .select()
-        .single();
+        if (updateError) {
+          toast.error(`Update Error: ${updateError.message}`, {
+            description: 'Copy this error and paste in chat for help',
+            duration: 10000,
+          });
+          return;
+        }
 
-      if (eventError) {
-        toast.error(`Database Error: ${eventError.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
-        return;
+        await supabase
+          .from('event_attendees')
+          .delete()
+          .eq('event_id', editingEventId);
+
+        if (attendees.length > 0) {
+          const attendeeRecords = attendees.map((attendeeId) => ({
+            event_id: editingEventId,
+            user_id: attendeeId,
+          }));
+
+          await supabase.from('event_attendees').insert(attendeeRecords);
+        }
+
+        toast.success('Event updated successfully!');
+      } else {
+        const { data: newEvent, error: eventError } = await supabase
+          .from('events')
+          .insert(eventData)
+          .select()
+          .single();
+
+        if (eventError) {
+          toast.error(`Database Error: ${eventError.message}`, {
+            description: 'Copy this error and paste in chat for help',
+            duration: 10000,
+          });
+          return;
+        }
+
+        const attendeeRecords = [
+          { event_id: newEvent.id, user_id: user.id },
+          ...attendees.map((attendeeId) => ({
+            event_id: newEvent.id,
+            user_id: attendeeId,
+          })),
+        ];
+
+        const { error: attendeeError } = await supabase
+          .from('event_attendees')
+          .insert(attendeeRecords);
+
+        if (attendeeError) {
+          console.error('Error adding attendees:', attendeeError);
+        }
+
+        toast.success('Event created successfully!');
       }
 
-      // Add attendees (including creator)
-      const attendeeRecords: AttendeeInsert[] = [user.id, ...selectedAttendees].map((userId) => ({
-        event_id: event.id,
-        user_id: userId,
-      }));
-
-      const { error: attendeesError } = await supabase
-        .from('event_attendees')
-        .insert(attendeeRecords);
-
-      if (attendeesError) {
-        console.error('Attendees error:', attendeesError);
-        toast.error(`Attendees Error: ${attendeesError.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
-      }
-
-      toast.success('Event created successfully!', {
-        description: 'Your event has been added to the calendar.',
-      });
-
-      // Reset form
-      setTitle('');
-      setDescription('');
-      setStartDate('');
-      setEndDate('');
-      setStartTime('');
-      setEndTime('');
-      setIsAllDay(false);
-      setHasRecurrence(false);
-      setSelectedAttendees([]);
+      resetForm();
     } catch (err) {
-      console.error('Create event error:', err);
+      console.error('Save error:', err);
       toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
+  };
+
+  const resetForm = () => {
+    setEditingEventId(null);
+    setTitle('');
+    setNotes('');
+    setStartDate('');
+    setEndDate('');
+    setStartTime('');
+    setEndTime('');
+    setIsAllDay(false);
+    setRecurrenceType('none');
+    setRecurrenceDays([]);
+    setRecurrenceInterval(1);
+    setAttendees([]);
+    setEventColor(profile?.calendar_color || 'hsl(217, 91%, 60%)');
   };
 
   const handleImportCalendar = () => {
@@ -129,7 +174,7 @@ export function CreateEvent() {
   };
 
   const toggleAttendee = (userId: string) => {
-    setSelectedAttendees((prev) =>
+    setAttendees((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
   };
@@ -167,7 +212,7 @@ export function CreateEvent() {
       />
 
       <div className="flex-1 overflow-y-auto pb-24 px-4">
-        <form onSubmit={handleSubmit} className="space-y-6 py-4">
+        <form onSubmit={handleSave} className="space-y-6 py-4">
           {/* Title */}
           <div className="space-y-2">
             <Label htmlFor="title">Event Title</Label>
@@ -250,19 +295,23 @@ export function CreateEvent() {
             </Label>
             <Switch
               id="recurrence"
-              checked={hasRecurrence}
-              onCheckedChange={setHasRecurrence}
+              checked={recurrenceType !== 'none'}
+              onCheckedChange={() =>
+                setRecurrenceType((prev) => (prev === 'none' ? 'daily' : 'none'))
+              }
             />
           </div>
 
           {/* Recurrence options */}
-          {hasRecurrence && (
+          {recurrenceType !== 'none' && (
             <div className="space-y-3">
               <div className="space-y-2">
                 <Label htmlFor="recurrence-type">Recurrence Pattern</Label>
                 <Select
                   value={recurrenceType}
-                  onValueChange={(value: 'daily' | 'weekly' | 'monthly' | 'custom') => setRecurrenceType(value)}
+                  onValueChange={(value: 'daily' | 'weekly' | 'monthly' | 'custom' | 'none') =>
+                    setRecurrenceType(value)
+                  }
                 >
                   <SelectTrigger className="bg-card">
                     <SelectValue placeholder="Select pattern" />
@@ -334,7 +383,7 @@ export function CreateEvent() {
                   <span className="flex-1 text-left text-sm">
                     {rel.profile.display_name}
                   </span>
-                  {selectedAttendees.includes(rel.profile.id) && (
+                  {attendees.includes(rel.profile.id) && (
                     <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
                       ✓
                     </div>
@@ -356,14 +405,14 @@ export function CreateEvent() {
               id="description"
               placeholder="Add notes or description..."
               className="bg-card min-h-24 resize-none"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
             />
           </div>
 
           {/* Submit button */}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? (
+          <Button type="submit" className="w-full" disabled={saving}>
+            {saving ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Creating...

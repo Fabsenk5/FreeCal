@@ -1,7 +1,7 @@
 import { CalendarEvent, getUserById, getUsersByIds } from '@/data/mockData';
-import { formatTime } from '@/utils/dateUtils';
+import { formatTime, formatDate } from '@/utils/dateUtils';
 import { cn } from '@/lib/utils';
-import { Clock, Users, Repeat } from 'lucide-react';
+import { Clock, Users, Repeat, Calendar } from 'lucide-react';
 
 interface EventCardProps {
   event: CalendarEvent;
@@ -17,6 +17,11 @@ export function EventCard({ event, onClick }: EventCardProps) {
     partner1: 'bg-[hsl(var(--user-partner1)_/_0.15)] border-[hsl(var(--user-partner1))] text-foreground',
     partner2: 'bg-[hsl(var(--user-partner2)_/_0.15)] border-[hsl(var(--user-partner2))] text-foreground',
   };
+
+  // Check if event spans multiple days
+  const startDate = new Date(event.startDate);
+  const endDate = new Date(event.endDate);
+  const isMultiDay = formatDate(event.startDate) !== formatDate(event.endDate);
 
   return (
     <button
@@ -35,6 +40,18 @@ export function EventCard({ event, onClick }: EventCardProps) {
       </div>
 
       <div className="space-y-1.5">
+        {/* Date display */}
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Calendar className="w-3.5 h-3.5" />
+          <span>
+            {isMultiDay 
+              ? `${formatDate(event.startDate)} - ${formatDate(event.endDate)}`
+              : formatDate(event.startDate)
+            }
+          </span>
+        </div>
+
+        {/* Time display */}
         {!event.isAllDay && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Clock className="w-3.5 h-3.5" />
