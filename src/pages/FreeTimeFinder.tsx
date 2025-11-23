@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
+import { TimeRangePicker, TimeValue } from '@/components/ui/time-picker';
 import { useEvents } from '@/hooks/useEvents';
 import { useRelationships } from '@/hooks/useRelationships';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,26 +23,13 @@ interface FreeTimeSlot {
   type: 'daytime' | 'overnight';
 }
 
-const TIMEZONES = [
-  { value: 'UTC', label: 'UTC', offset: 0 },
-  { value: 'America/New_York', label: 'Eastern Time (ET)', offset: -5 },
-  { value: 'America/Chicago', label: 'Central Time (CT)', offset: -6 },
-  { value: 'America/Denver', label: 'Mountain Time (MT)', offset: -7 },
-  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)', offset: -8 },
-  { value: 'Europe/London', label: 'London (GMT)', offset: 0 },
-  { value: 'Europe/Paris', label: 'Central European (CET)', offset: 1 },
-  { value: 'Asia/Dubai', label: 'Dubai (GST)', offset: 4 },
-  { value: 'Asia/Tokyo', label: 'Japan (JST)', offset: 9 },
-  { value: 'Australia/Sydney', label: 'Sydney (AEDT)', offset: 11 },
-  { value: 'Pacific/Auckland', label: 'New Zealand (NZDT)', offset: 13 },
-];
-
 export function FreeTimeFinder() {
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear] = useState(new Date().getFullYear());
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [timezone, setTimezone] = useState('UTC');
+  const [startTime, setStartTime] = useState<TimeValue>({ hours: 9, minutes: 0 });
+  const [endTime, setEndTime] = useState<TimeValue>({ hours: 17, minutes: 0 });
   const [dayRange, setDayRange] = useState<number[]>([1, 31]);
 
   const { events, loading: eventsLoading } = useEvents();
@@ -60,13 +48,36 @@ export function FreeTimeFinder() {
     );
   };
 
+  // Convert TimeValue to minutes since midnight
+  const getTimeInMinutes = (time: TimeValue) => {
+    return time.hours * 60 + time.minutes;
+  };
+
+  // Check if a time is within the selected time frame
+  const isTimeInFrame = (hour: number, minute: number): boolean => {
+    const timeMinutes = hour * 60 + minute;
+    const startMinutes = getTimeInMinutes(startTime);
+    let endMinutes = getTimeInMinutes(endTime);
+
+    // Handle overnight time frames
+    if (endMinutes <= startMinutes) {
+      // Time frame spans midnight
+      return timeMinutes >= startMinutes || timeMinutes <= endMinutes;
+    }
+
+    return timeMinutes >= startMinutes && timeMinutes <= endMinutes;
+  };
+
   // Check if a specific time slot is free for all selected users
   const isTimeSlotFree = (date: Date, startHour: number, endHour: number): boolean => {
     if (selectedUsers.length === 0) return false;
 
+    // Check if time slot is within selected time frame
+    if (!isTimeInFrame(startHour, 0)) return false;
+
     const slotStart = new Date(date);
     slotStart.setHours(startHour, 0, 0, 0);
-    
+
     const slotEnd = new Date(date);
     // Handle overnight slots
     if (endHour < startHour) {
@@ -96,7 +107,7 @@ export function FreeTimeFinder() {
   // Generate free time slots with proper algorithm
   const generateFreeTimeSlots = (): FreeTimeSlot[] => {
     const slots: FreeTimeSlot[] = [];
-    
+
     // Filter days based on day range
     const filteredDays = days.filter((date) => {
       if (!date) return false;
@@ -104,44 +115,84 @@ export function FreeTimeFinder() {
       return dayOfMonth >= dayRange[0] && dayOfMonth <= dayRange[1];
     });
 
+    const startHour = startTime.hours;
+    const endHour = endTime.hours;
+    const startMinute = startTime.minutes;
+    const endMinute = endTime.minutes;
+
+    const startTotalMinutes = getTimeInMinutes(startTime);
+    const endTotalMinutes = getTimeInMinutes(endTime);
+
+    // Calculate if time frame spans midnight
+    const spansMiddnight = endTotalMinutes <= startTotalMinutes;
+
+    // Calculate total duration in minutes
+    let totalDuration = spansMiddnight
+      ? (24 * 60 - startTotalMinutes) + endTotalMinutes
+      : endTotalMinutes - startTotalMinutes;
+
     filteredDays.forEach((date) => {
       if (!date) return;
 
-      // Daytime slots: 9 AM - 5 PM (30-minute increments)
-      for (let hour = 9; hour < 17; hour++) {
-        for (let minute = 0; minute < 60; minute += 30) {
-          const startHour = hour;
-          const startMinute = minute;
-          const endMinute = minute + 30;
-          const endHour = endMinute >= 60 ? hour + 1 : hour;
-          const adjustedEndMinute = endMinute >= 60 ? 0 : endMinute;
+      // Generate slots in 30-minute increments within the selected time frame
+      let currentHour = startHour;
+      let currentMinute = startMinute;
 
-          if (endHour >= 17) break; // Don't go past 5 PM
+      while (true) {
+        const currentTotalMinutes = currentHour * 60 + currentMinute;
 
-          if (isTimeSlotFree(date, startHour, endHour > startHour ? endHour : startHour)) {
-            const startTimeStr = `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
-            const endTimeStr = `${endHour.toString().padStart(2, '0')}:${adjustedEndMinute.toString().padStart(2, '0')}`;
+        // Calculate next slot
+        let nextMinute = currentMinute + 30;
+        let nextHour = currentHour;
+        if (nextMinute >= 60) {
+          nextMinute = 0;
+          nextHour = (nextHour + 1) % 24;
+        }
 
-            slots.push({
-              date: new Date(date),
-              startTime: formatTime(startTimeStr),
-              endTime: formatTime(endTimeStr),
-              duration: 30,
-              type: 'daytime',
-            });
+        const nextTotalMinutes = nextHour * 60 + nextMinute;
+
+        // Check if we've reached the end time
+        if (!spansMiddnight) {
+          if (currentTotalMinutes >= endTotalMinutes) break;
+          if (nextTotalMinutes > endTotalMinutes) break;
+        } else {
+          // For spans across midnight, check if we've completed the loop
+          if (
+            currentHour >= endHour &&
+            currentMinute >= endMinute &&
+            (currentHour < startHour || (currentHour === startHour && currentMinute < startMinute))
+          ) {
+            break;
           }
         }
-      }
 
-      // Overnight suggestion: 10 PM - 6 AM (8 hours)
-      if (isTimeSlotFree(date, 22, 6)) {
-        slots.push({
-          date: new Date(date),
-          startTime: '10:00 PM',
-          endTime: '6:00 AM',
-          duration: 480,
-          type: 'overnight',
-        });
+        if (isTimeSlotFree(date, currentHour, nextHour)) {
+          const startTimeStr = `${currentHour.toString().padStart(2, '0')}:${currentMinute
+            .toString()
+            .padStart(2, '0')}`;
+          const endTimeStr = `${nextHour.toString().padStart(2, '0')}:${nextMinute
+            .toString()
+            .padStart(2, '0')}`;
+
+          // Determine if overnight based on hours
+          const isOvernight =
+            nextHour < currentHour || (currentHour >= 20 || nextHour <= 6);
+
+          slots.push({
+            date: new Date(date),
+            startTime: formatTime(startTimeStr),
+            endTime: formatTime(endTimeStr),
+            duration: 30,
+            type: isOvernight ? 'overnight' : 'daytime',
+          });
+        }
+
+        // Move to next slot
+        currentMinute = nextMinute;
+        currentHour = nextHour;
+
+        // Safety check to prevent infinite loops
+        if (slots.length > 200) break;
       }
     });
 
@@ -196,15 +247,18 @@ export function FreeTimeFinder() {
 
   const handleCreateFromSlot = (slot: FreeTimeSlot) => {
     toast.info('Creating event from free time slot');
-    
+
     // Navigate to Create Event tab (you'll need to implement navigation)
     // For now, we'll use localStorage to pass the slot data
-    localStorage.setItem('prefillEventData', JSON.stringify({
-      date: slot.date.toISOString().split('T')[0],
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      attendees: selectedUsers,
-    }));
+    localStorage.setItem(
+      'prefillEventData',
+      JSON.stringify({
+        date: slot.date.toISOString().split('T')[0],
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        attendees: selectedUsers,
+      })
+    );
 
     // Trigger tab change or navigation
     window.dispatchEvent(new CustomEvent('navigateToCreateEvent'));
@@ -279,21 +333,26 @@ export function FreeTimeFinder() {
             </Select>
           </div>
 
-          {/* Timezone selector */}
+          {/* Time Frame Selection */}
           <div className="space-y-2">
-            <Label>Timezone</Label>
-            <Select value={timezone} onValueChange={setTimezone}>
-              <SelectTrigger className="bg-card">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TIMEZONES.map((tz) => (
-                  <SelectItem key={tz.value} value={tz.value}>
-                    {tz.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center justify-between">
+              <Label>Time Frame</Label>
+              <span className="text-xs text-muted-foreground">
+                Max 48 hours
+              </span>
+            </div>
+            <TimeRangePicker
+              startTime={startTime}
+              endTime={endTime}
+              onStartTimeChange={setStartTime}
+              onEndTimeChange={setEndTime}
+              maxDuration={48}
+            />
+            <p className="text-xs text-muted-foreground">
+              {getTimeInMinutes(endTime) <= getTimeInMinutes(startTime)
+                ? 'Spans across midnight'
+                : 'Same day time frame'}
+            </p>
           </div>
 
           {/* Day Range Slider */}
@@ -464,7 +523,7 @@ export function FreeTimeFinder() {
                         {formatDate(new Date(dateKey))}
                       </h3>
                     </div>
-                    
+
                     {/* Slots for this date */}
                     <div className="space-y-2">
                       {slots.map((slot, index) => (
@@ -478,17 +537,21 @@ export function FreeTimeFinder() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3 flex-1">
                               {/* Icon */}
-                              <div className={cn(
-                                'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
-                                slot.type === 'daytime' ? 'bg-green-500/10' : 'bg-blue-500/10'
-                              )}>
+                              <div
+                                className={cn(
+                                  'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
+                                  slot.type === 'daytime'
+                                    ? 'bg-green-500/10'
+                                    : 'bg-blue-500/10'
+                                )}
+                              >
                                 {slot.type === 'daytime' ? (
                                   <Sun className="w-4 h-4 text-green-500" />
                                 ) : (
                                   <Moon className="w-4 h-4 text-blue-500" />
                                 )}
                               </div>
-                              
+
                               {/* Time info */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -500,7 +563,9 @@ export function FreeTimeFinder() {
                                   </span>
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                  {slot.type === 'daytime' ? 'Daytime slot' : 'Overnight suggestion'}
+                                  {slot.type === 'daytime'
+                                    ? 'Daytime slot'
+                                    : 'Overnight suggestion'}
                                 </p>
                               </div>
                             </div>
@@ -528,10 +593,11 @@ export function FreeTimeFinder() {
         <div className="mt-6 bg-muted/50 rounded-xl p-4">
           <h3 className="text-sm font-semibold mb-2">💡 How it works</h3>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Free Time Finder shows available time slots when all selected people are free. 
-            Daytime slots are 30-minute increments from 9 AM to 5 PM. Overnight suggestions 
-            are 8-hour blocks from 10 PM to 6 AM. Click "Create" to quickly schedule an event 
-            during a free slot.
+            Free Time Finder shows available time slots when all selected people are free within 
+            your chosen time frame. Select a start and end time (can span up to 48 hours, including 
+            overnight). Use the day range slider to filter specific dates within the month. 
+            Available slots are shown in 30-minute increments. Click "Create" to quickly schedule 
+            an event during a free slot.
           </p>
         </div>
       </div>
