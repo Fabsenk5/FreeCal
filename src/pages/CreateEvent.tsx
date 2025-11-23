@@ -37,6 +37,24 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
   const [recurrenceDays, setRecurrenceDays] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Convert 12-hour time format to 24-hour
+  const convertTo24Hour = (time12: string): string => {
+    const match = time12.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!match) return '';
+    
+    let hours = parseInt(match[1]);
+    const minutes = match[2];
+    const period = match[3].toUpperCase();
+    
+    if (period === 'PM' && hours !== 12) {
+      hours += 12;
+    } else if (period === 'AM' && hours === 12) {
+      hours = 0;
+    }
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes}`;
+  };
+
   // FIXED: Load event data from prop when editing
   useEffect(() => {
     if (eventToEdit) {
@@ -66,6 +84,36 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
     }
   }, [eventToEdit, profile?.calendar_color]);
 
+  // NEW: Listen for Free Time Finder slot data
+  useEffect(() => {
+    const handlePrefill = () => {
+      const prefillData = localStorage.getItem('prefillEventData');
+      if (prefillData) {
+        try {
+          const data = JSON.parse(prefillData);
+          setStartDate(data.date);
+          setEndDate(data.date);
+          setStartTime(convertTo24Hour(data.startTime));
+          setEndTime(convertTo24Hour(data.endTime));
+          setAttendees(data.attendees || []);
+          
+          localStorage.removeItem('prefillEventData');
+          toast.success('Event details pre-filled from free time slot');
+        } catch (error) {
+          console.error('Error parsing prefill data:', error);
+        }
+      }
+    };
+
+    // Check on mount
+    handlePrefill();
+
+    // Listen for custom event
+    window.addEventListener('navigateToCreateEvent', handlePrefill);
+    return () => window.removeEventListener('navigateToCreateEvent', handlePrefill);
+  }, []);
+
+  // ... existing code ...
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     
