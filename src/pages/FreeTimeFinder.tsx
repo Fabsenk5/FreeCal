@@ -287,9 +287,10 @@ export function FreeTimeFinder() {
     );
   }
 
-  const startTotal = timeFrame.startMinutes;
-  const endTotal = timeFrame.endMinutes;
-  const spansMidnight = endTotal <= startTotal;
+  // Calculate if time frame spans into Day 2
+  const startTime = getTimeFromMinutes(timeFrame.startMinutes);
+  const endTime = getTimeFromMinutes(timeFrame.endMinutes);
+  const spansIntoDay2 = endTime.day === 1;
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -359,7 +360,7 @@ export function FreeTimeFinder() {
               step={15}
             />
             <p className="text-xs text-muted-foreground">
-              {spansMidnight ? 'Spans across midnight' : 'Same day time frame'}
+              {spansIntoDay2 ? 'Spans into Day 2' : 'Day 1 time frame only'}
             </p>
           </div>
 
