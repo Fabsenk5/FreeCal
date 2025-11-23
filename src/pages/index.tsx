@@ -14,7 +14,7 @@ function Index() {
   const renderContent = () => {
     switch (activeTab) {
       case 'calendar':
-        return <CalendarView />;
+        return <CalendarView onNavigate={(tab) => setActiveTab(tab)} />;
       case 'create':
         return <CreateEvent />;
       case 'freetime':
@@ -22,7 +22,7 @@ function Index() {
       case 'profile':
         return <Profile />;
       default:
-        return <CalendarView />;
+        return <CalendarView onNavigate={(tab) => setActiveTab(tab)} />;
     }
   };
 

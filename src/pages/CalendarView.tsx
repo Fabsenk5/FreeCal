@@ -6,7 +6,7 @@ import { EventList } from '@/components/calendar/EventList';
 import { ViewToggle, CalendarView as ViewType } from '@/components/calendar/ViewToggle';
 import { useEvents } from '@/hooks/useEvents';
 import { useRelationships } from '@/hooks/useRelationships';
-import { getMonthName, isSameDay } from '@/utils/dateUtils';
+import { getMonthName } from '@/utils/dateUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EventCard } from '@/components/calendar/EventCard';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
-export function CalendarView() {
+export function CalendarView({ onNavigate }: { onNavigate?: (tab: 'create') => void }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [view, setView] = useState<ViewType>('month');
@@ -41,15 +41,51 @@ export function CalendarView() {
 
   const selectedEvent = events.find((e) => e.id === selectedEventId);
 
+  // FIXED: Multi-day event filtering
   const getEventsForDate = (date: Date | null) => {
     if (!date) return [];
+    
     return events.filter((event) => {
-      const eventDate = new Date(event.start_time);
-      return isSameDay(eventDate, date);
+      const startDate = new Date(event.start_time);
+      const endDate = new Date(event.end_time);
+      
+      // Set time to midnight for accurate date-only comparison
+      const checkDate = new Date(date);
+      checkDate.setHours(0, 0, 0, 0);
+      
+      const eventStart = new Date(startDate);
+      eventStart.setHours(0, 0, 0, 0);
+      
+      const eventEnd = new Date(endDate);
+      eventEnd.setHours(0, 0, 0, 0);
+      
+      // Event is on this date if the date falls between start and end (inclusive)
+      return checkDate >= eventStart && checkDate <= eventEnd;
     });
   };
 
   const selectedDateEvents = selectedDate ? getEventsForDate(selectedDate) : [];
+
+  // FIXED: Edit event handler with navigation
+  const handleEditEvent = () => {
+    if (!selectedEvent) return;
+    
+    console.log('Edit button clicked, event:', selectedEvent);
+    
+    // Dispatch event for CreateEvent to pick up
+    window.dispatchEvent(new CustomEvent('editEvent', { detail: selectedEvent }));
+    
+    // Navigate to create tab
+    if (onNavigate) {
+      console.log('Navigating to create tab');
+      onNavigate('create');
+    } else {
+      console.error('onNavigate is not defined!');
+    }
+    
+    // Close dialog
+    setSelectedEventId(null);
+  };
 
   const handleDeleteEvent = async () => {
     if (!selectedEvent) return;
@@ -88,6 +124,9 @@ export function CalendarView() {
       </div>
     );
   }
+
+  console.log('Selected date:', selectedDate);
+  console.log('Events for selected date:', selectedDateEvents.length);
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -213,12 +252,7 @@ export function CalendarView() {
                 <Button
                   className="flex-1"
                   variant="outline"
-                  onClick={() => {
-                    // Navigate to create event page with event data for editing
-                    const eventData = encodeURIComponent(JSON.stringify(selectedEvent));
-                    window.dispatchEvent(new CustomEvent('editEvent', { detail: selectedEvent }));
-                    setSelectedEventId(null);
-                  }}
+                  onClick={handleEditEvent}
                 >
                   Edit
                 </Button>
