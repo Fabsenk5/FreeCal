@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,7 @@ import { Calendar, Upload, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase, Database } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { EventWithAttendees } from '@/hooks/useEvents';
 
 type EventInsert = Database['public']['Tables']['events']['Insert'];
 type AttendeeInsert = Database['public']['Tables']['event_attendees']['Insert'];
@@ -33,6 +34,37 @@ export function CreateEvent() {
   const [recurrenceInterval, setRecurrenceInterval] = useState(1);
   const [recurrenceDays, setRecurrenceDays] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // Listen for edit event
+  useEffect(() => {
+    const handleEditEvent = (e: CustomEvent) => {
+      const event = e.detail as EventWithAttendees;
+      setEditingEventId(event.id);
+      setTitle(event.title);
+      
+      const start = new Date(event.start_time);
+      const end = new Date(event.end_time);
+      
+      setStartDate(start.toISOString().split('T')[0]);
+      setStartTime(start.toTimeString().slice(0, 5));
+      setEndDate(end.toISOString().split('T')[0]);
+      setEndTime(end.toTimeString().slice(0, 5));
+      setIsAllDay(event.is_all_day);
+      setRecurrenceType(event.recurrence_type);
+      setRecurrenceDays(event.recurrence_days || []);
+      setRecurrenceInterval(event.recurrence_interval || 1);
+      setAttendees(event.attendees || []);
+      setEventColor(event.color);
+      setNotes(event.description || '');
+      
+      toast.info('Editing event', {
+        description: 'Update the details and save.',
+      });
+    };
+
+    window.addEventListener('editEvent', handleEditEvent as EventListener);
+    return () => window.removeEventListener('editEvent', handleEditEvent as EventListener);
+  }, []);
 
   const handleSave = async () => {
     if (!title.trim()) {
