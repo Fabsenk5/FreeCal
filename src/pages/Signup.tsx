@@ -90,7 +90,7 @@ export function Signup() {
                 <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-green-500">Account created successfully!</p>
-                  <p className="text-xs text-green-500/80 mt-1">Redirecting to login...</p>
+                  <p className="text-xs text-green-500/80 mt-1">Your account is in beta phase and requires approval. You'll receive access once approved.</p>
                 </div>
               </div>
             )}

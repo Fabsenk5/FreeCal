@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { ColorPicker } from '@/components/profile/ColorPicker';
 import { PendingRequestsSection } from '@/components/profile/PendingRequestsSection';
+import { AdminPanel } from '@/components/profile/AdminPanel';
 
 export function Profile() {
   const { profile, user, updateProfile, signOut } = useAuth();
@@ -336,6 +337,9 @@ export function Profile() {
 
         {/* Pending Requests */}
         <PendingRequestsSection />
+
+        {/* Admin Panel for admin users */}
+        {profile?.role === 'admin' && <AdminPanel />}
 
         {/* About section */}
         <div className="pb-6">
