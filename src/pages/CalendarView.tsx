@@ -162,7 +162,8 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
             isAllDay: e.is_all_day,
             userId: e.user_id,
             attendeeIds: e.attendees || [],
-            color: 'self',
+            color: e.creator_color || 'hsl(217, 91%, 60%)',
+            creatorName: e.creator_name,
           }))}
           selectedDate={selectedDate}
           onDateSelect={handleDateSelect}
@@ -182,7 +183,8 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
                 isAllDay: e.is_all_day,
                 userId: e.user_id,
                 attendeeIds: e.attendees || [],
-                color: 'self',
+                color: e.creator_color || 'hsl(217, 91%, 60%)',
+                creatorName: e.creator_name,
               }))}
               onEventClick={(event) => setSelectedEventId(event.id)}
             />
@@ -237,7 +239,8 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
                   isAllDay: selectedEvent.is_all_day,
                   userId: selectedEvent.user_id,
                   attendeeIds: selectedEvent.attendees || [],
-                  color: 'self',
+                  color: selectedEvent.creator_color || 'hsl(217, 91%, 60%)',
+                  creatorName: selectedEvent.creator_name,
                 }}
               />
               <div className="flex gap-2">

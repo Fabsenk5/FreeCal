@@ -12,25 +12,33 @@ export function EventCard({ event, onClick }: EventCardProps) {
   const creator = getUserById(event.userId);
   const attendees = getUsersByIds(event.attendeeIds);
 
-  const colorClasses = {
-    self: 'bg-[hsl(var(--user-self)_/_0.15)] border-[hsl(var(--user-self))] text-foreground',
-    partner1: 'bg-[hsl(var(--user-partner1)_/_0.15)] border-[hsl(var(--user-partner1))] text-foreground',
-    partner2: 'bg-[hsl(var(--user-partner2)_/_0.15)] border-[hsl(var(--user-partner2))] text-foreground',
-  };
-
   // Check if event spans multiple days
   const startDate = new Date(event.startDate);
   const endDate = new Date(event.endDate);
   const isMultiDay = formatDate(event.startDate) !== formatDate(event.endDate);
 
+  // Convert HSL color to rgba for background
+  const getBackgroundColor = (color: string) => {
+    // Extract HSL values from string like "hsl(217, 91%, 60%)"
+    const hslMatch = color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+    if (hslMatch) {
+      const [, h, s, l] = hslMatch;
+      return `hsla(${h}, ${s}%, ${l}%, 0.15)`;
+    }
+    return color;
+  };
+
   return (
     <button
       onClick={onClick}
       className={cn(
-        'w-full text-left p-3 rounded-lg border-l-4 transition-all hover:scale-[1.02] active:scale-[0.98]',
-        colorClasses[event.color]
+        'w-full text-left p-3 rounded-lg border-l-4 transition-all hover:scale-[1.02] active:scale-[0.98] text-foreground'
       )}
-      style={{ transition: 'var(--transition-smooth)' }}
+      style={{
+        backgroundColor: getBackgroundColor(event.color),
+        borderColor: event.color,
+        transition: 'var(--transition-smooth)'
+      }}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <h3 className="font-semibold text-sm leading-tight flex-1">{event.title}</h3>
@@ -44,10 +52,9 @@ export function EventCard({ event, onClick }: EventCardProps) {
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Calendar className="w-3.5 h-3.5" />
           <span>
-            {isMultiDay 
+            {isMultiDay
               ? `${formatDate(event.startDate)} - ${formatDate(event.endDate)}`
-              : formatDate(event.startDate)
-            }
+              : formatDate(event.startDate)}
           </span>
         </div>
 
@@ -70,7 +77,11 @@ export function EventCard({ event, onClick }: EventCardProps) {
 
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
-            <span className="font-medium">{creator?.name}</span>
+            <div 
+              className="w-2 h-2 rounded-full" 
+              style={{ backgroundColor: event.color }}
+            />
+            <span className="font-medium">{event.creatorName || creator?.name || 'Unknown'}</span>
           </div>
         </div>
 

@@ -85,11 +85,11 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect }: M
                       key={event.id}
                       className={cn(
                         'w-1 h-1 rounded-full',
-                        event.color === 'self' && 'bg-[hsl(var(--user-self))]',
-                        event.color === 'partner1' && 'bg-[hsl(var(--user-partner1))]',
-                        event.color === 'partner2' && 'bg-[hsl(var(--user-partner2))]',
-                        isSelected && 'bg-primary-foreground'
+                        isSelected && 'opacity-80'
                       )}
+                      style={{ 
+                        backgroundColor: isSelected ? '#ffffff' : event.color 
+                      }}
                     />
                   ))}
                   {dayEvents.length > 3 && (
