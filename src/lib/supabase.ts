@@ -28,6 +28,10 @@ export interface Database {
           email: string;
           avatar_url: string | null;
           calendar_color: string;
+          is_approved: boolean;
+          approval_status: 'pending' | 'approved' | 'rejected';
+          approved_at: string | null;
+          approved_by: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -37,6 +41,10 @@ export interface Database {
           email: string;
           avatar_url?: string | null;
           calendar_color?: string;
+          is_approved?: boolean;
+          approval_status?: 'pending' | 'approved' | 'rejected';
+          approved_at?: string | null;
+          approved_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -46,6 +54,10 @@ export interface Database {
           email?: string;
           avatar_url?: string | null;
           calendar_color?: string;
+          is_approved?: boolean;
+          approval_status?: 'pending' | 'approved' | 'rejected';
+          approved_at?: string | null;
+          approved_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };

@@ -4,6 +4,7 @@ import NotFound from '@/pages/NotFound';
 import { Login } from '@/pages/Login';
 import { Signup } from '@/pages/Signup';
 import { HealthCheck } from '@/pages/HealthCheck';
+import { PendingApproval } from '@/pages/PendingApproval';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 const routes = [
@@ -25,6 +26,10 @@ const routes = [
       {
         path: "signup",
         element: <Signup />,
+      },
+      {
+        path: "pending-approval",
+        element: <PendingApproval />,
       },
       {
         path: "health",
