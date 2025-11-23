@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { EventWithAttendees } from '@/hooks/useEvents';
+import { parseICS, ParsedEvent } from '@/utils/icsParser';
 
 interface CreateEventProps {
   eventToEdit?: EventWithAttendees | null;
@@ -36,6 +37,11 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
   const [recurrenceInterval, setRecurrenceInterval] = useState(1);
   const [recurrenceDays, setRecurrenceDays] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [location, setLocation] = useState<string>('');
+  const [eventUrl, setEventUrl] = useState<string>('');
+  const [isTentative, setIsTentative] = useState(false);
+  const [alerts, setAlerts] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Convert 12-hour time format to 24-hour
   const convertTo24Hour = (time12: string): string => {
@@ -77,6 +83,9 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       setAttendees(eventToEdit.attendees || []);
       setEventColor(eventToEdit.color || eventToEdit.creator_color || profile?.calendar_color || 'hsl(217, 91%, 60%)');
       setNotes(eventToEdit.description || '');
+      setLocation(eventToEdit.location || '');
+      setEventUrl(eventToEdit.url || '');
+      setIsTentative(eventToEdit.is_tentative || false);
       
       toast.info('Editing event', {
         description: 'Update the details and save.',
@@ -113,7 +122,6 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
     return () => window.removeEventListener('navigateToCreateEvent', handlePrefill);
   }, []);
 
-  // ... existing code ...
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -172,6 +180,9 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
         recurrence_interval: recurrenceType !== 'none' ? recurrenceInterval : null,
         recurrence_end_date: null,
         imported_from_device: false,
+        location: location.trim() || null,
+        url: eventUrl.trim() || null,
+        is_tentative: isTentative,
       };
 
       if (editingEventId) {
@@ -273,12 +284,82 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
     setRecurrenceInterval(1);
     setAttendees([]);
     setEventColor(profile?.calendar_color || 'hsl(217, 91%, 60%)');
+    setLocation('');
+    setEventUrl('');
+    setIsTentative(false);
   };
 
-  const handleImportCalendar = () => {
-    toast.info('Calendar import', {
-      description: 'This feature will allow importing events from your device calendar.',
-    });
+  const handleImportCalendar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.currentTarget.files?.[0];
+    if (!file) return;
+
+    try {
+      const content = await file.text();
+      const parsed = parseICS(content);
+      
+      if (!parsed) {
+        toast.error('Could not parse calendar file', {
+          description: 'Please make sure the file is a valid IC\nS file.',
+        });
+        return;
+      }
+
+      // Pre-fill form with parsed data
+      setTitle(parsed.title);
+      setNotes(parsed.description || '');
+      setStartDate(parsed.startDate);
+      setEndDate(parsed.endDate);
+      setStartTime(parsed.startTime || '');
+      setEndTime(parsed.endTime || '');
+      setIsAllDay(parsed.isAllDay);
+      setNotes(parsed.description || '');
+      
+      if (parsed.recurrenceRule) {
+        // Try to detect recurrence type from RRULE
+        if (parsed.recurrenceRule.includes('FREQ=DAILY')) {
+          setRecurrenceType('daily');
+        } else if (parsed.recurrenceRule.includes('FREQ=WEEKLY')) {
+          setRecurrenceType('weekly');
+        } else if (parsed.recurrenceRule.includes('FREQ=MONTHLY')) {
+          setRecurrenceType('monthly');
+        } else {
+          setRecurrenceType('custom');
+        }
+      }
+
+      // Store iOS metadata for later use
+      if (parsed.alerts) {
+        localStorage.setItem('importedAlerts', JSON.stringify(parsed.alerts));
+        setAlerts(parsed.alerts);
+      }
+      if (parsed.attendees) {
+        localStorage.setItem('importedAttendees', JSON.stringify(parsed.attendees));
+      }
+      if (parsed.isTentative !== undefined) {
+        localStorage.setItem('importedIsTentative', JSON.stringify(parsed.isTentative));
+        setIsTentative(parsed.isTentative);
+      }
+      if (parsed.url) {
+        localStorage.setItem('importedUrl', parsed.url);
+        setEventUrl(parsed.url);
+      }
+      if (parsed.location) {
+        localStorage.setItem('importedLocation', parsed.location);
+        setLocation(parsed.location);
+      }
+
+      toast.success('Event imported successfully!', {
+        description: `Imported: ${parsed.title}`,
+      });
+    } catch (error) {
+      console.error('Error importing calendar:', error);
+      toast.error('Error importing calendar', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
+    // Reset file input
+    e.currentTarget.value = '';
   };
 
   const toggleAttendee = (userId: string) => {
@@ -323,15 +404,24 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
         }
         rightAction={
           !editingEventId ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleImportCalendar}
-              className="flex items-center gap-1"
-            >
-              <Upload className="w-4 h-4" />
-              <span className="text-xs">Import</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1"
+              >
+                <Upload className="w-4 h-4" />
+                <span className="text-xs">Import</span>
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".ics,.ical,.ifb,.icalendar"
+                onChange={handleImportCalendar}
+                className="hidden"
+              />
+            </div>
           ) : undefined
         }
       />
@@ -523,6 +613,39 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
             </div>
           </div>
 
+          {/* Location */}
+          <div className="space-y-2">
+            <Label htmlFor="location">Location</Label>
+            <Input
+              id="location"
+              placeholder="Meeting room, address, etc."
+              className="bg-card"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+          </div>
+
+          {/* Event URL */}
+          <div className="space-y-2">
+            <Label htmlFor="event-url">Event URL / Meeting Link</Label>
+            <Input
+              id="event-url"
+              type="url"
+              placeholder="https://example.com/meeting"
+              className="bg-card"
+              value={eventUrl}
+              onChange={(e) => setEventUrl(e.target.value)}
+            />
+          </div>
+
+          {/* Tentative Status */}
+          <div className="flex items-center justify-between bg-card p-4 rounded-lg">
+            <Label htmlFor="tentative" className="cursor-pointer">
+              Mark as tentative
+            </Label>
+            <Switch id="tentative" checked={isTentative} onCheckedChange={setIsTentative} />
+          </div>
+
           {/* Description */}
           <div className="space-y-2">
             <Label htmlFor="description">Notes</Label>
@@ -533,6 +656,46 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
+          </div>
+
+          {/* Imported Metadata */}
+          <div className="space-y-2">
+            <Label>Imported Alerts</Label>
+            <Textarea
+              placeholder="Alerts..."
+              className="bg-card min-h-12 resize-none"
+              value={alerts.join('\n')}
+              onChange={(e) => setAlerts(e.target.value.split('\n'))}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="event-url">Event URL</Label>
+            <Input
+              id="event-url"
+              placeholder="https://..."
+              className="bg-card"
+              value={eventUrl}
+              onChange={(e) => setEventUrl(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="location">Location</Label>
+            <Input
+              id="location"
+              placeholder="Room, Address..."
+              className="bg-card"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between bg-card p-4 rounded-lg">
+            <Label htmlFor="is-tentative" className="cursor-pointer">
+              Tentative
+            </Label>
+            <Switch id="is-tentative" checked={isTentative} onCheckedChange={setIsTentative} />
           </div>
 
           {/* Submit buttons */}
