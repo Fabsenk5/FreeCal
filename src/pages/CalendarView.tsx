@@ -134,6 +134,32 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
             {getMonthName(month)} {year}
           </h2>
           
+          {/* Color legend - compact horizontal version */}
+          <div className="flex items-center gap-2 flex-1 justify-center overflow-x-auto">
+            {profile && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: profile.calendar_color }}
+                />
+                <span className="text-xs text-muted-foreground">
+                  {profile.display_name.split(' ')[0]}
+                </span>
+              </div>
+            )}
+            {relationships.map((rel) => (
+              <div key={rel.id} className="flex items-center gap-1.5 shrink-0">
+                <div
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: rel.profile.calendar_color }}
+                />
+                <span className="text-xs text-muted-foreground">
+                  {rel.profile.display_name.split(' ')[0]}
+                </span>
+              </div>
+            ))}
+          </div>
+          
           <div className="flex gap-1 shrink-0">
             <button
               onClick={handlePrevMonth}
