@@ -470,7 +470,7 @@ S file.',
       <ScreenshotImportDialog
         open={showScreenshotDialog}
         onOpenChange={setShowScreenshotDialog}
-        onOCRSuccess={handleOCRSuccess}
+        onImportSuccess={handleOCRSuccess}
       />
 
       <div className="flex-1 overflow-y-auto pb-24 px-4">
