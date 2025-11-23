@@ -55,90 +55,123 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
     const text = ocrText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-    // Extract title by finding the line between UI elements and date info
-    let title = '';
-    let titleIndex = -1;
-    
+    // Extract title - support multi-line titles
+    let titleLines: string[] = [];
+    let titleStartIndex = -1;
+    let titleEndIndex = -1;
+
     // Common iOS calendar UI elements to skip (more comprehensive)
     const skipPatterns = [
       /^\d{1,2}:\d{2}/, // Time in HH:MM format (status bar)
       /^</, // Back button arrow
       /^[<>◀▶←→]+/, // Navigation arrows
-      /^(Dezember|December|Januar|January|Februar|February|März|March|April|Mai|May|Juni|June|Juli|July|August|September|Oktober|October|November)\b/i, // Month names (word boundary)
-      /^(Bearbeiten|Edit|Kalender|Calendar|Hinweis|Notes|Note|Ort|Location|Privat|Private|Work|Arbeit|Ohne|None)$/i, // UI labels (exact match)
+      /^(Dezember|December|Januar|January|Februar|February|März|March|April|Mai|May|Juni|June|Juli|July|August|September|Oktober|October|November)\b/i, // Month names
+      /^(Bearbeiten|Edit|Kalender|Calendar|Hinweis|Notes|Note|Notizen|Ort|Location|URL)$/i, // UI field labels (exact match)
+      /^(Privat|Private|Work|Arbeit|Ohne|None)$/i, // Calendar names
       /^[📅🔔⏰]+$/, // Emoji icons
       /^\d{1,2}%$/, // Battery percentage
-      /^[A-Z\s]{3,}$/, // ALL CAPS (likely UI)
       /^(von|bis|from|to|am)$/i, // Prepositions alone
-      /^(Ereignis löschen|Delete Event|Abbrechen|Cancel)$/i, // Action buttons
+      /^(Ereignis löschen|Delete Event|Abbrechen|Cancel|Kalenderabo beenden|Mehr anzeigen)$/i, // Action buttons
+      /^\d{2}:\d{2}$/, // Time only (18:00, 19:00, etc. in timeline)
     ];
-    
-    // Find the title by looking for text that:
-    // 1. Is NOT a UI element
-    // 2. Comes BEFORE the date line (Ganztägig or date pattern)
-    // 3. Is meaningful (2-100 chars)
-    let foundDateLine = false;
-    
+
+    // Find title by looking for consecutive lines of meaningful text before date/time info
+    let inTitleSection = false;
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      
-      // Check if we've hit the date line
-      if (line.match(/^(Ganztägig|All-day|den ganzen Tag)/i) || 
-          line.match(/\d{1,2}\.\s*\w{3}\.\s*\d{4}/) ||
-          line.match(/von.*bis/i)) {
-        foundDateLine = true;
+
+      // Check if we've hit the date/time line
+      if (line.match(/^(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i) ||
+          line.match(/^\d{1,2}\.\s*(Jan|Feb|Mär|Mar|Apr|Mai|May|Jun|Jul|Aug|Sep|Okt|Oct|Nov|Dez|Dec)/i) ||
+          line.match(/^\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}/) || // Time range
+          line.match(/^(Ganztägig|All-day)/i)) {
+        titleEndIndex = i - 1;
         break;
       }
-      
+
       // Skip obvious UI elements
       if (skipPatterns.some(pattern => pattern.test(line))) {
+        if (inTitleSection) {
+          // We were in title, now hit UI element, so title is done
+          titleEndIndex = i - 1;
+          break;
+        }
         continue;
       }
-      
-      // Skip lines with special chars that indicate UI (except umlauts and hyphens)
-      if (line.match(/[<>◀▶←→•⋅]/)) {
+
+      // Skip lines with special chars that indicate UI (except umlauts, hyphens, pipes, and common punctuation)
+      if (line.match(/^[<>◀▶←→•⋅]+/)) {
         continue;
       }
-      
-      // Check if line is reasonable title length and contains letters
-      if (line.length >= 2 && line.length <= 100 && line.match(/[a-zA-ZäöüÄÖÜß]/)) {
-        // This looks like a potential title
-        title = line.replace(/^[<>◀▶←→\s]+/, '').trim(); // Clean any remaining arrows
-        titleIndex = i;
+
+      // Check if line is reasonable title text
+      if (line.length >= 2 && line.length <= 200 && line.match(/[a-zA-ZäöüÄÖÜß0-9]/)) {
+        if (!inTitleSection) {
+          titleStartIndex = i;
+          inTitleSection = true;
+        }
+        titleLines.push(line.replace(/^[<>◀▶←→\s]+/, '').trim());
+      } else if (inTitleSection) {
+        // Empty or invalid line after title started - title is done
+        titleEndIndex = i - 1;
         break;
       }
     }
 
-    // Fallback: if no title found, look for the longest meaningful line before date
-    if (!title) {
-      let maxLength = 0;
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        
-        // Stop at date line
-        if (line.match(/^(Ganztägig|All-day)/i) || line.match(/\d{1,2}\.\s*\w{3}\.\s*\d{4}/)) {
-          break;
-        }
-        
-        // Skip UI elements
-        if (skipPatterns.some(pattern => pattern.test(line))) {
+    // Join multi-line title
+    const title = titleLines.join(' ').trim() || 'Imported Event';
+
+    // Check for all-day event indicator
+    const isAllDay = text.includes('Ganztägig') ||
+                     text.includes('All-day') ||
+                     text.includes('den ganzen Tag');
+
+    // Parse time ranges first (prioritize over single times)
+    const timeRangePattern = /(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})/;
+    const timeRangeMatch = text.match(timeRangePattern);
+    
+    let startTime: string | undefined;
+    let endTime: string | undefined;
+    
+    if (!isAllDay && timeRangeMatch) {
+      startTime = `${timeRangeMatch[1].padStart(2, '0')}:${timeRangeMatch[2]}`;
+      endTime = `${timeRangeMatch[3].padStart(2, '0')}:${timeRangeMatch[4]}`;
+    } else if (!isAllDay) {
+      // Fallback to single times if no range found
+      // But skip times that are just timeline markers (18:00, 19:00, 20:00 etc. alone on a line)
+      const timePattern = /(\d{1,2}):(\d{2})\s*(Uhr|AM|PM)?/gi;
+      const timeMatches: RegExpMatchArray[] = [];
+      
+      // Only include times that appear in context (not standalone on lines)
+      for (const line of lines) {
+        // Skip timeline markers (single time on its own line)
+        if (line.match(/^\d{1,2}:\d{2}$/)) {
           continue;
         }
         
-        // Find longest line
-        if (line.length > maxLength && line.length >= 2 && line.length <= 100) {
-          title = line.replace(/^[<>◀▶←→\s]+/, '').trim();
-          maxLength = line.length;
+        const matches = [...line.matchAll(timePattern)];
+        timeMatches.push(...matches);
+      }
+      
+      if (timeMatches.length > 0) {
+        const formatTime = (hours: string, minutes: string, period?: string): string => {
+          let h = parseInt(hours);
+          if (period?.toUpperCase() === 'PM' && h !== 12) h += 12;
+          if (period?.toUpperCase() === 'AM' && h === 12) h = 0;
+          return `${h.toString().padStart(2, '0')}:${minutes}`;
+        };
+
+        if (timeMatches[0]) {
+          startTime = formatTime(timeMatches[0][1], timeMatches[0][2], timeMatches[0][3]);
+        }
+        if (timeMatches[1]) {
+          endTime = formatTime(timeMatches[1][1], timeMatches[1][2], timeMatches[1][3]);
         }
       }
     }
 
-    // Check for all-day event indicator
-    const isAllDay = text.includes('Ganztägig') || 
-                     text.includes('All-day') || 
-                     text.includes('den ganzen Tag');
-
-    // Parse German date format: "Mi. 17. Dez. 2025" or "von Mi. 17. Dez. 2025 bis Fr. 19. Dez. 2025"
+    // Parse German date format: "Mi. 17. Dez. 2025" or "28. Nov. 2025"
     const germanDatePattern = /(\w+\.)?\s*(\d{1,2})\.\s*(\w{3})\.\s*(\d{4})/gi;
     const dateMatches = [...text.matchAll(germanDatePattern)];
 
@@ -188,37 +221,33 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
       endDate = startDate;
     }
 
-    // Parse time (HH:MM format)
-    const timePattern = /(\d{1,2}):(\d{2})\s*(Uhr|AM|PM)?/gi;
-    const timeMatches = [...text.matchAll(timePattern)];
-
-    let startTime: string | undefined;
-    let endTime: string | undefined;
-
-    if (!isAllDay && timeMatches.length > 0) {
-      const formatTime = (hours: string, minutes: string, period?: string): string => {
-        let h = parseInt(hours);
-        if (period?.toUpperCase() === 'PM' && h !== 12) h += 12;
-        if (period?.toUpperCase() === 'AM' && h === 12) h = 0;
-        return `${h.toString().padStart(2, '0')}:${minutes}`;
-      };
-
-      if (timeMatches[0]) {
-        startTime = formatTime(timeMatches[0][1], timeMatches[0][2], timeMatches[0][3]);
-      }
-      if (timeMatches[1]) {
-        endTime = formatTime(timeMatches[1][1], timeMatches[1][2], timeMatches[1][3]);
-      }
-    }
-
-    // Extract location
+    // Extract location - look for location patterns
     let location: string | undefined;
     const locationKeywords = ['Ort:', 'Location:', 'Raum:', 'Room:'];
+    
     for (const line of lines) {
+      // Check for location with keyword
       for (const keyword of locationKeywords) {
         if (line.includes(keyword)) {
           location = line.replace(keyword, '').trim();
           break;
+        }
+      }
+      
+      // Check for location with domain prefix (e.g., "calovo.de | Arena...")
+      if (!location && line.match(/\.(de|com|org|net)\s*\|/)) {
+        // Extract everything after the domain
+        const parts = line.split('|');
+        if (parts.length > 1) {
+          location = parts.slice(1).join('|').trim();
+        }
+      }
+      
+      // Check for venue patterns (Arena, Stadium, etc.)
+      if (!location && line.match(/(Arena|Stadium|Stadion|Halle|Hall|Center|Centre|Platz)/i)) {
+        // Only take as location if it's not part of the title
+        if (!titleLines.some(t => t.includes(line))) {
+          location = line;
         }
       }
     }
@@ -252,7 +281,7 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
     }
 
     // Check for tentative status
-    const isTentative = text.includes('tentativ') || 
+    const isTentative = text.includes('tentativ') ||
                        text.includes('Tentative') ||
                        text.includes('vielleicht');
 

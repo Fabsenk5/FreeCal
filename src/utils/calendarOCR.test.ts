@@ -200,5 +200,54 @@ describe('Calendar OCR Parser', () => {
       expect(result?.title).toBe('Team Meeting');
       expect(result?.isAllDay).toBe(true);
     });
+
+    it('should parse multi-line title correctly', () => {
+      const ocrText = `
+        < November
+        Hannover 96 - Karlsruher SC | 2.
+        Liga | 14. Spieltag
+        calovo.de | Heinz von Heiden Arena (Stadion), Hannover, Deutschland
+        Freitag, 28. Nov. 2025
+        18:30 - 20:30
+        Kalender Hannover 96 - Spielplan
+      `;
+
+      const result = parseCalendarOCR(ocrText);
+
+      expect(result).toBeTruthy();
+      expect(result?.title).toBe('Hannover 96 - Karlsruher SC | 2. Liga | 14. Spieltag');
+      expect(result?.isAllDay).toBe(false);
+      expect(result?.startDate).toBe('2025-11-28');
+      expect(result?.startTime).toBe('18:30');
+      expect(result?.endTime).toBe('20:30');
+      expect(result?.location).toBe('Heinz von Heiden Arena (Stadion), Hannover, Deutschland');
+    });
+
+    it('should extract location from domain-prefixed line', () => {
+      const ocrText = `
+        Conference
+        example.com | Google Meet Room
+        15. Dez. 2025
+        10:00 - 11:00
+      `;
+
+      const result = parseCalendarOCR(ocrText);
+
+      expect(result?.location).toBe('Google Meet Room');
+    });
+
+    it('should parse time ranges correctly', () => {
+      const ocrText = `
+        Meeting
+        15. Dez. 2025
+        14:30 - 16:45
+      `;
+
+      const result = parseCalendarOCR(ocrText);
+
+      expect(result?.startTime).toBe('14:30');
+      expect(result?.endTime).toBe('16:45');
+      expect(result?.isAllDay).toBe(false);
+    });
   });
 });
