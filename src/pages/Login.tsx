@@ -1,18 +1,27 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Calendar, AlertCircle } from 'lucide-react';
+import { Calendar, AlertCircle, CheckCircle } from 'lucide-react';
 
 export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showBetaMessage, setShowBetaMessage] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    // Check if user just registered
+    if (searchParams.get('registered') === 'true') {
+      setShowBetaMessage(true);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,9 +67,28 @@ export function Login() {
           <p className="text-muted-foreground">Sign in to your calendar account</p>
         </div>
 
+        {/* Beta Registration Message */}
+        {showBetaMessage && (
+          <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 flex items-start gap-3 mb-4">
+            <CheckCircle className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-primary">You have successfully registered. Welcome to the beta!</p>
+          </div>
+        )}
+
         {/* Login Form */}
         <div className="bg-card rounded-2xl p-8 shadow-card">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Beta Registration Success Message */}
+            {showBetaMessage && (
+              <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-green-500">Account created successfully!</p>
+                  <p className="text-xs text-green-500/80 mt-1">Your account is in beta phase and requires approval. You'll receive access once approved by an administrator.</p>
+                </div>
+              </div>
+            )}
+
             {/* Error Message */}
             {error && (
               <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 flex items-start gap-3">
