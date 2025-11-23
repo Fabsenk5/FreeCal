@@ -186,14 +186,17 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
     let endTime: string | undefined;
     
     if (!isAllDay) {
-      // First, try multi-day pattern: "von HH:MM Mo. DD. Mon. YYYY bis HH:MM Di. DD. Mon. YYYY"
-      const multiDayPattern = /von\s+(\d{1,2}):(\d{2}).*?bis\s+(\d{1,2}):(\d{2})/i;
+      // First, try multi-day pattern: "von HH:MM ... bis HH:MM"
+      // Make it more robust to handle newlines and spacing variations
+      const multiDayPattern = /von\s+(\d{1,2}):(\d{2})[\s\S]*?bis\s+(\d{1,2}):(\d{2})/i;
       const multiDayMatch = text.match(multiDayPattern);
       
       if (multiDayMatch) {
+        console.log('Multi-day time pattern matched:', multiDayMatch);
         startTime = `${multiDayMatch[1].padStart(2, '0')}:${multiDayMatch[2]}`;
         endTime = `${multiDayMatch[3].padStart(2, '0')}:${multiDayMatch[4]}`;
       } else {
+        console.log('Multi-day pattern not matched, trying single-day pattern');
         // Fall back to single-day time range: "18:30 - 20:30"
         const timeRangePattern = /(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})/;
         
@@ -205,12 +208,15 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
           
           const match = line.match(timeRangePattern);
           if (match) {
+            console.log('Single-day time range matched:', match);
             startTime = `${match[1].padStart(2, '0')}:${match[2]}`;
             endTime = `${match[3].padStart(2, '0')}:${match[4]}`;
             break;
           }
         }
       }
+      
+      console.log('Extracted times - start:', startTime, 'end:', endTime);
     }
 
     // Parse German date format: "Mi. 17. Dez. 2025" or "28. Nov. 2025"
