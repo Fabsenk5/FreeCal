@@ -4,7 +4,7 @@ import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { MonthView } from '@/components/calendar/MonthView';
 import { EventList } from '@/components/calendar/EventList';
 import { ViewToggle, CalendarView as ViewType } from '@/components/calendar/ViewToggle';
-import { useEvents } from '@/hooks/useEvents';
+import { useEvents, EventWithAttendees } from '@/hooks/useEvents';
 import { useRelationships } from '@/hooks/useRelationships';
 import { getMonthName } from '@/utils/dateUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -14,7 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
-export function CalendarView({ onNavigate }: { onNavigate?: (tab: 'create') => void }) {
+export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithAttendees) => void }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [view, setView] = useState<ViewType>('month');
@@ -66,21 +66,16 @@ export function CalendarView({ onNavigate }: { onNavigate?: (tab: 'create') => v
 
   const selectedDateEvents = selectedDate ? getEventsForDate(selectedDate) : [];
 
-  // FIXED: Edit event handler with navigation
+  // FIXED: Edit event handler with proper state passing
   const handleEditEvent = () => {
     if (!selectedEvent) return;
     
-    console.log('Edit button clicked, event:', selectedEvent);
+    console.log('CalendarView: Edit button clicked, event:', selectedEvent);
     
-    // Dispatch event for CreateEvent to pick up
-    window.dispatchEvent(new CustomEvent('editEvent', { detail: selectedEvent }));
-    
-    // Navigate to create tab
-    if (onNavigate) {
-      console.log('Navigating to create tab');
-      onNavigate('create');
+    if (onEditEvent) {
+      onEditEvent(selectedEvent);
     } else {
-      console.error('onNavigate is not defined!');
+      console.error('onEditEvent callback is not defined!');
     }
     
     // Close dialog
@@ -124,9 +119,6 @@ export function CalendarView({ onNavigate }: { onNavigate?: (tab: 'create') => v
       </div>
     );
   }
-
-  console.log('Selected date:', selectedDate);
-  console.log('Events for selected date:', selectedDateEvents.length);
 
   return (
     <div className="flex flex-col h-screen bg-background">

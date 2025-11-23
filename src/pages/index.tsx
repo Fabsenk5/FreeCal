@@ -5,24 +5,37 @@ import { CreateEvent } from './CreateEvent';
 import { FreeTimeFinder } from './FreeTimeFinder';
 import { Profile } from './Profile';
 import { Toaster } from '@/components/ui/sonner';
+import { EventWithAttendees } from '@/hooks/useEvents';
 
 type ActiveTab = 'calendar' | 'create' | 'freetime' | 'profile';
 
 function Index() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('calendar');
+  const [eventToEdit, setEventToEdit] = useState<EventWithAttendees | null>(null);
+
+  const handleEditEvent = (event: EventWithAttendees) => {
+    console.log('Index: Setting event to edit:', event);
+    setEventToEdit(event);
+    setActiveTab('create');
+  };
+
+  const handleEventSaved = () => {
+    setEventToEdit(null);
+    setActiveTab('calendar');
+  };
 
   const renderContent = () => {
     switch (activeTab) {
       case 'calendar':
-        return <CalendarView onNavigate={(tab) => setActiveTab(tab)} />;
+        return <CalendarView onEditEvent={handleEditEvent} />;
       case 'create':
-        return <CreateEvent />;
+        return <CreateEvent eventToEdit={eventToEdit} onEventSaved={handleEventSaved} />;
       case 'freetime':
         return <FreeTimeFinder />;
       case 'profile':
         return <Profile />;
       default:
-        return <CalendarView onNavigate={(tab) => setActiveTab(tab)} />;
+        return <CalendarView onEditEvent={handleEditEvent} />;
     }
   };
 
