@@ -3,7 +3,29 @@ import { parseCalendarOCR } from './calendarOCR';
 
 describe('Calendar OCR Parser', () => {
   describe('parseCalendarOCR', () => {
-    it('should parse German calendar format (München example)', () => {
+    it('should parse German calendar format (München example with UI noise)', () => {
+      // Simulating OCR output with status bar and UI elements
+      const ocrText = `
+        23:46
+        Dezember
+        Bearbeiten
+        München
+        Ganztägig von Mi. 17. Dez. 2025 bis Fr. 19. Dez. 2025
+        Kalender Privat
+        Hinweis Ohne
+      `;
+
+      const result = parseCalendarOCR(ocrText);
+
+      expect(result).toBeTruthy();
+      expect(result?.title).toBe('München');
+      expect(result?.isAllDay).toBe(true);
+      expect(result?.startDate).toBe('2025-12-17');
+      expect(result?.endDate).toBe('2025-12-19');
+      expect(result?.calendar).toBe('Privat');
+    });
+
+    it('should parse German calendar format (clean München example)', () => {
       const ocrText = `
         München
         Ganztägig von Mi. 17. Dez. 2025 bis Fr. 19. Dez. 2025
