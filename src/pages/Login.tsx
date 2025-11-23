@@ -4,25 +4,41 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Calendar } from 'lucide-react';
+import { Calendar, AlertCircle } from 'lucide-react';
 
 export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
     
     try {
       await signIn(email, password);
       navigate('/');
-    } catch (error) {
-      // Error is already handled by toast in AuthContext
-      console.error('Login failed:', error);
+    } catch (err) {
+      // Show user-friendly error messages
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      
+      if (errorMessage.includes('Invalid login credentials')) {
+        setError('Invalid email or password. Please check your credentials and try again.');
+      } else if (errorMessage.includes('Email not confirmed')) {
+        setError('Please confirm your email address before signing in.');
+      } else if (errorMessage.includes('User not found')) {
+        setError('No account found with this email. Please sign up first.');
+      } else if (errorMessage.includes('Too many requests')) {
+        setError('Too many login attempts. Please try again later.');
+      } else {
+        setError(errorMessage || 'Failed to sign in. Please try again.');
+      }
+      
+      console.error('Login failed:', err);
     } finally {
       setLoading(false);
     }
@@ -45,6 +61,14 @@ export function Login() {
         {/* Login Form */}
         <div className="bg-card rounded-2xl p-8 shadow-card">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Error Message */}
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -52,7 +76,10 @@ export function Login() {
                 type="email"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setError(''); // Clear error when user types
+                }}
                 className="bg-background"
                 required
                 autoComplete="email"
@@ -66,7 +93,10 @@ export function Login() {
                 type="password"
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setError(''); // Clear error when user types
+                }}
                 className="bg-background"
                 required
                 autoComplete="current-password"
