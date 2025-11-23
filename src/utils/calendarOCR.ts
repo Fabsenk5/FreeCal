@@ -55,11 +55,48 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
     const text = ocrText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-    // Extract title - support multi-line titles
+    // FIRST: Extract location (before processing title)
+    let location: string | undefined;
+    const locationKeywords = ['Ort:', 'Location:', 'Raum:', 'Room:'];
+    const locationLineIndices: number[] = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Check for location with keyword
+      for (const keyword of locationKeywords) {
+        if (line.includes(keyword)) {
+          location = line.replace(keyword, '').trim();
+          locationLineIndices.push(i);
+          break;
+        }
+      }
+      
+      // Check for location with domain prefix (e.g., "calovo.de | Arena...")
+      if (!location && line.match(/\.(de|com|org|net)\s*\|/)) {
+        // Extract everything after the domain
+        const parts = line.split('|');
+        if (parts.length > 1) {
+          location = parts.slice(1).join('|').trim();
+          locationLineIndices.push(i);
+        }
+      }
+      
+      // Check for venue patterns (Arena, Stadium, etc.)
+      if (!location && line.match(/(Arena|Stadium|Stadion|Halle|Hall|Center|Centre|Platz)/i)) {
+        // Check if it looks like a standalone location line
+        if (!line.match(/^(Hannover 96|FC |SC |TSV |SV )/i)) {
+          location = line;
+          locationLineIndices.push(i);
+        }
+      }
+    }
+
+    // Extract title - support multi-line titles but exclude location lines
     let titleLines: string[] = [];
     let titleStartIndex = -1;
     let titleEndIndex = -1;
-
+    
     // Common iOS calendar UI elements to skip (more comprehensive)
     const skipPatterns = [
       /^\d{1,2}:\d{2}/, // Time in HH:MM format (status bar)
@@ -74,13 +111,22 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
       /^(Ereignis löschen|Delete Event|Abbrechen|Cancel|Kalenderabo beenden|Mehr anzeigen)$/i, // Action buttons
       /^\d{2}:\d{2}$/, // Time only (18:00, 19:00, etc. in timeline)
     ];
-
+    
     // Find title by looking for consecutive lines of meaningful text before date/time info
     let inTitleSection = false;
-
+    
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-
+      
+      // Skip location lines
+      if (locationLineIndices.includes(i)) {
+        if (inTitleSection) {
+          titleEndIndex = i - 1;
+          break;
+        }
+        continue;
+      }
+      
       // Check if we've hit the date/time line
       if (line.match(/^(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i) ||
           line.match(/^\d{1,2}\.\s*(Jan|Feb|Mär|Mar|Apr|Mai|May|Jun|Jul|Aug|Sep|Okt|Oct|Nov|Dez|Dec)/i) ||
@@ -89,22 +135,30 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
         titleEndIndex = i - 1;
         break;
       }
-
+      
       // Skip obvious UI elements
       if (skipPatterns.some(pattern => pattern.test(line))) {
         if (inTitleSection) {
-          // We were in title, now hit UI element, so title is done
           titleEndIndex = i - 1;
           break;
         }
         continue;
       }
-
-      // Skip lines with special chars that indicate UI (except umlauts, hyphens, pipes, and common punctuation)
+      
+      // Skip lines with domain patterns (location lines)
+      if (line.match(/\.(de|com|org|net)\s*\|/)) {
+        if (inTitleSection) {
+          titleEndIndex = i - 1;
+          break;
+        }
+        continue;
+      }
+      
+      // Skip lines with special chars that indicate UI
       if (line.match(/^[<>◀▶←→•⋅]+/)) {
         continue;
       }
-
+      
       // Check if line is reasonable title text
       if (line.length >= 2 && line.length <= 200 && line.match(/[a-zA-ZäöüÄÖÜß0-9]/)) {
         if (!inTitleSection) {
@@ -113,60 +167,38 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
         }
         titleLines.push(line.replace(/^[<>◀▶←→\s]+/, '').trim());
       } else if (inTitleSection) {
-        // Empty or invalid line after title started - title is done
         titleEndIndex = i - 1;
         break;
       }
     }
-
+    
     // Join multi-line title
     const title = titleLines.join(' ').trim() || 'Imported Event';
 
     // Check for all-day event indicator
-    const isAllDay = text.includes('Ganztägig') ||
-                     text.includes('All-day') ||
+    const isAllDay = text.includes('Ganztägig') || 
+                     text.includes('All-day') || 
                      text.includes('den ganzen Tag');
 
-    // Parse time ranges first (prioritize over single times)
-    const timeRangePattern = /(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})/;
-    const timeRangeMatch = text.match(timeRangePattern);
-    
+    // Parse time ranges - look for the pattern in the actual content lines
     let startTime: string | undefined;
     let endTime: string | undefined;
     
-    if (!isAllDay && timeRangeMatch) {
-      startTime = `${timeRangeMatch[1].padStart(2, '0')}:${timeRangeMatch[2]}`;
-      endTime = `${timeRangeMatch[3].padStart(2, '0')}:${timeRangeMatch[4]}`;
-    } else if (!isAllDay) {
-      // Fallback to single times if no range found
-      // But skip times that are just timeline markers (18:00, 19:00, 20:00 etc. alone on a line)
-      const timePattern = /(\d{1,2}):(\d{2})\s*(Uhr|AM|PM)?/gi;
-      const timeMatches: RegExpMatchArray[] = [];
+    if (!isAllDay) {
+      // Find time range in content (not in status bar)
+      const timeRangePattern = /(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})/;
       
-      // Only include times that appear in context (not standalone on lines)
       for (const line of lines) {
-        // Skip timeline markers (single time on its own line)
-        if (line.match(/^\d{1,2}:\d{2}$/)) {
+        // Skip status bar time (at start of text)
+        if (lines.indexOf(line) === 0 && line.match(/^\d{2}:\d{2}/)) {
           continue;
         }
         
-        const matches = [...line.matchAll(timePattern)];
-        timeMatches.push(...matches);
-      }
-      
-      if (timeMatches.length > 0) {
-        const formatTime = (hours: string, minutes: string, period?: string): string => {
-          let h = parseInt(hours);
-          if (period?.toUpperCase() === 'PM' && h !== 12) h += 12;
-          if (period?.toUpperCase() === 'AM' && h === 12) h = 0;
-          return `${h.toString().padStart(2, '0')}:${minutes}`;
-        };
-
-        if (timeMatches[0]) {
-          startTime = formatTime(timeMatches[0][1], timeMatches[0][2], timeMatches[0][3]);
-        }
-        if (timeMatches[1]) {
-          endTime = formatTime(timeMatches[1][1], timeMatches[1][2], timeMatches[1][3]);
+        const match = line.match(timeRangePattern);
+        if (match) {
+          startTime = `${match[1].padStart(2, '0')}:${match[2]}`;
+          endTime = `${match[3].padStart(2, '0')}:${match[4]}`;
+          break;
         }
       }
     }
@@ -219,37 +251,6 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
     // If no end date found, use start date
     if (!endDate && startDate) {
       endDate = startDate;
-    }
-
-    // Extract location - look for location patterns
-    let location: string | undefined;
-    const locationKeywords = ['Ort:', 'Location:', 'Raum:', 'Room:'];
-    
-    for (const line of lines) {
-      // Check for location with keyword
-      for (const keyword of locationKeywords) {
-        if (line.includes(keyword)) {
-          location = line.replace(keyword, '').trim();
-          break;
-        }
-      }
-      
-      // Check for location with domain prefix (e.g., "calovo.de | Arena...")
-      if (!location && line.match(/\.(de|com|org|net)\s*\|/)) {
-        // Extract everything after the domain
-        const parts = line.split('|');
-        if (parts.length > 1) {
-          location = parts.slice(1).join('|').trim();
-        }
-      }
-      
-      // Check for venue patterns (Arena, Stadium, etc.)
-      if (!location && line.match(/(Arena|Stadium|Stadion|Halle|Hall|Center|Centre|Platz)/i)) {
-        // Only take as location if it's not part of the title
-        if (!titleLines.some(t => t.includes(line))) {
-          location = line;
-        }
-      }
     }
 
     // Extract notes/description
