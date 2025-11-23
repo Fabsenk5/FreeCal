@@ -59,14 +59,38 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
     let title = '';
     let titleIndex = 0;
     
+    // Common iOS calendar UI elements to skip
+    const skipPatterns = [
+      /^\d{1,2}:\d{2}/, // Time in HH:MM format (status bar)
+      /^(Dezember|December|Januar|January|Februar|February|März|March|April|Mai|May|Juni|June|Juli|July|August|September|Oktober|October|November)$/i, // Month names
+      /^(Bearbeiten|Edit|Kalender|Calendar|Hinweis|Notes|Ort|Location|Privat|Private|Work|Arbeit)$/i, // UI labels
+      /^[◀▶←→]+$/, // Navigation arrows
+      /^[📅🔔⏰]+$/, // Emoji icons
+      /^\d{1,2}%$/, // Battery percentage
+      /^[A-Z]{2,}$/, // ALL CAPS (likely UI)
+      /^(von|bis|from|to|am)$/i, // Prepositions alone
+    ];
+    
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      // Skip common calendar UI elements
-      if (line.match(/^(Dezember|December|Januar|January|Bearbeiten|Edit|Kalender|Calendar)$/i)) {
+      
+      // Skip if matches any skip pattern
+      if (skipPatterns.some(pattern => pattern.test(line))) {
         continue;
       }
-      // Found title
-      if (line.length > 0 && !line.match(/\d{1,2}[.\/-]\s*\d{1,2}/)) {
+      
+      // Skip if contains date pattern
+      if (line.match(/\d{1,2}\.\s*\w{3}\.\s*\d{4}/)) {
+        continue;
+      }
+      
+      // Skip if it's "Ganztägig" or similar
+      if (line.match(/^(Ganztägig|All-day|den ganzen Tag)/i)) {
+        continue;
+      }
+      
+      // Found title - should be meaningful text
+      if (line.length >= 2 && !line.match(/^[\d\s:=\-_]+$/)) {
         title = line;
         titleIndex = i;
         break;
@@ -83,7 +107,7 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
     const dateMatches = [...text.matchAll(germanDatePattern)];
 
     // Parse English date format: "Dec 17, 2025" or "17/12/2025"
-    const englishDatePattern = /(\d{1,2})[./-](\d{1,2})[./-](\d{4})/g;
+    const englishDatePattern = /(\d{1,2})[\./\-](\d{1,2})[\./\-](\d{4})/g;
     const englishMatches = [...text.matchAll(englishDatePattern)];
 
     let startDate = '';
