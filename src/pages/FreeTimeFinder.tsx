@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
-import { TimeRangePicker, TimeValue } from '@/components/ui/time-picker';
+import { DualTimeSlider, TimeFrameValue } from '@/components/ui/dual-time-slider';
 import { useEvents } from '@/hooks/useEvents';
 import { useRelationships } from '@/hooks/useRelationships';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,8 +28,10 @@ export function FreeTimeFinder() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear] = useState(new Date().getFullYear());
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [startTime, setStartTime] = useState<TimeValue>({ hours: 9, minutes: 0 });
-  const [endTime, setEndTime] = useState<TimeValue>({ hours: 17, minutes: 0 });
+  const [timeFrame, setTimeFrame] = useState<TimeFrameValue>({
+    startMinutes: 540,  // Day 1 09:00
+    endMinutes: 1020,   // Day 1 17:00
+  });
   const [dayRange, setDayRange] = useState<number[]>([1, 31]);
 
   const { events, loading: eventsLoading } = useEvents();
@@ -48,24 +50,49 @@ export function FreeTimeFinder() {
     );
   };
 
-  // Convert TimeValue to minutes since midnight
-  const getTimeInMinutes = (time: TimeValue) => {
-    return time.hours * 60 + time.minutes;
+  // Convert slider minutes (0-2879) to actual day and time
+  const getTimeFromMinutes = (totalMinutes: number) => {
+    const day = Math.floor(totalMinutes / (24 * 60)); // 0 for Day 1, 1 for Day 2
+    const minutesInDay = totalMinutes % (24 * 60);
+    const hours = Math.floor(minutesInDay / 60);
+    const minutes = minutesInDay % 60;
+    return { day, hours, minutes };
   };
 
   // Check if a time is within the selected time frame
-  const isTimeInFrame = (hour: number, minute: number): boolean => {
+  const isTimeInFrame = (date: Date, hour: number, minute: number): boolean => {
     const timeMinutes = hour * 60 + minute;
-    const startMinutes = getTimeInMinutes(startTime);
-    let endMinutes = getTimeInMinutes(endTime);
 
-    // Handle overnight time frames
-    if (endMinutes <= startMinutes) {
-      // Time frame spans midnight
-      return timeMinutes >= startMinutes || timeMinutes <= endMinutes;
+    const startTime = getTimeFromMinutes(timeFrame.startMinutes);
+    const endTime = getTimeFromMinutes(timeFrame.endMinutes);
+
+    // Determine which day this date represents in our 2-day frame
+    // We'll check both Day 1 and Day 2 scenarios
+
+    // Day 1 check
+    if (startTime.day === 0) {
+      const startMinutesDay1 = startTime.hours * 60 + startTime.minutes;
+      if (timeMinutes >= startMinutesDay1 && timeMinutes < 24 * 60) {
+        return true;
+      }
     }
 
-    return timeMinutes >= startMinutes && timeMinutes <= endMinutes;
+    // Day 2 check
+    if (endTime.day === 1) {
+      const endMinutesDay2 = endTime.hours * 60 + endTime.minutes;
+      if (timeMinutes <= endMinutesDay2) {
+        return true;
+      }
+    }
+
+    // If the entire frame is on Day 1
+    if (startTime.day === 0 && endTime.day === 0) {
+      const startMinutesDay1 = startTime.hours * 60 + startTime.minutes;
+      const endMinutesDay1 = endTime.hours * 60 + endTime.minutes;
+      return timeMinutes >= startMinutesDay1 && timeMinutes <= endMinutesDay1;
+    }
+
+    return false;
   };
 
   // Check if a specific time slot is free for all selected users
@@ -73,7 +100,7 @@ export function FreeTimeFinder() {
     if (selectedUsers.length === 0) return false;
 
     // Check if time slot is within selected time frame
-    if (!isTimeInFrame(startHour, 0)) return false;
+    if (!isTimeInFrame(date, startHour, 0)) return false;
 
     const slotStart = new Date(date);
     slotStart.setHours(startHour, 0, 0, 0);
@@ -115,81 +142,68 @@ export function FreeTimeFinder() {
       return dayOfMonth >= dayRange[0] && dayOfMonth <= dayRange[1];
     });
 
-    const startHour = startTime.hours;
-    const endHour = endTime.hours;
-    const startMinute = startTime.minutes;
-    const endMinute = endTime.minutes;
-
-    const startTotalMinutes = getTimeInMinutes(startTime);
-    const endTotalMinutes = getTimeInMinutes(endTime);
-
-    // Calculate if time frame spans midnight
-    const spansMiddnight = endTotalMinutes <= startTotalMinutes;
-
-    // Calculate total duration in minutes
-    let totalDuration = spansMiddnight
-      ? (24 * 60 - startTotalMinutes) + endTotalMinutes
-      : endTotalMinutes - startTotalMinutes;
-
     filteredDays.forEach((date) => {
       if (!date) return;
 
       // Generate slots in 30-minute increments within the selected time frame
-      let currentHour = startHour;
-      let currentMinute = startMinute;
+      let currentMinutes = timeFrame.startMinutes;
+      const maxMinutes = timeFrame.endMinutes;
 
-      while (true) {
-        const currentTotalMinutes = currentHour * 60 + currentMinute;
+      while (currentMinutes < maxMinutes) {
+        const nextMinutes = Math.min(currentMinutes + 30, maxMinutes);
 
-        // Calculate next slot
-        let nextMinute = currentMinute + 30;
-        let nextHour = currentHour;
-        if (nextMinute >= 60) {
-          nextMinute = 0;
-          nextHour = (nextHour + 1) % 24;
-        }
+        const currentTime = getTimeFromMinutes(currentMinutes);
+        const nextTime = getTimeFromMinutes(nextMinutes);
 
-        const nextTotalMinutes = nextHour * 60 + nextMinute;
+        // For Day 1 slots
+        if (currentTime.day === 0) {
+          const slotDate = new Date(date);
+          if (isTimeSlotFree(slotDate, currentTime.hours, nextTime.hours)) {
+            const startTimeStr = `${currentTime.hours.toString().padStart(2, '0')}:${currentTime.minutes
+              .toString()
+              .padStart(2, '0')}`;
+            const endTimeStr = `${nextTime.hours.toString().padStart(2, '0')}:${nextTime.minutes
+              .toString()
+              .padStart(2, '0')}`;
 
-        // Check if we've reached the end time
-        if (!spansMiddnight) {
-          if (currentTotalMinutes >= endTotalMinutes) break;
-          if (nextTotalMinutes > endTotalMinutes) break;
-        } else {
-          // For spans across midnight, check if we've completed the loop
-          if (
-            currentHour >= endHour &&
-            currentMinute >= endMinute &&
-            (currentHour < startHour || (currentHour === startHour && currentMinute < startMinute))
-          ) {
-            break;
+            const isOvernight = nextTime.hours < currentTime.hours || (currentTime.hours >= 20 || nextTime.hours <= 6);
+
+            slots.push({
+              date: new Date(slotDate),
+              startTime: formatTime(startTimeStr),
+              endTime: formatTime(endTimeStr),
+              duration: 30,
+              type: isOvernight ? 'overnight' : 'daytime',
+            });
           }
         }
 
-        if (isTimeSlotFree(date, currentHour, nextHour)) {
-          const startTimeStr = `${currentHour.toString().padStart(2, '0')}:${currentMinute
-            .toString()
-            .padStart(2, '0')}`;
-          const endTimeStr = `${nextHour.toString().padStart(2, '0')}:${nextMinute
-            .toString()
-            .padStart(2, '0')}`;
+        // For Day 2 slots (next day)
+        if (currentTime.day === 1 || nextTime.day === 1) {
+          const slotDate = new Date(date);
+          slotDate.setDate(slotDate.getDate() + 1);
 
-          // Determine if overnight based on hours
-          const isOvernight =
-            nextHour < currentHour || (currentHour >= 20 || nextHour <= 6);
+          if (isTimeSlotFree(slotDate, currentTime.hours, nextTime.hours)) {
+            const startTimeStr = `${currentTime.hours.toString().padStart(2, '0')}:${currentTime.minutes
+              .toString()
+              .padStart(2, '0')}`;
+            const endTimeStr = `${nextTime.hours.toString().padStart(2, '0')}:${nextTime.minutes
+              .toString()
+              .padStart(2, '0')}`;
 
-          slots.push({
-            date: new Date(date),
-            startTime: formatTime(startTimeStr),
-            endTime: formatTime(endTimeStr),
-            duration: 30,
-            type: isOvernight ? 'overnight' : 'daytime',
-          });
+            const isOvernight = nextTime.hours < currentTime.hours || (currentTime.hours >= 20 || nextTime.hours <= 6);
+
+            slots.push({
+              date: new Date(slotDate),
+              startTime: formatTime(startTimeStr),
+              endTime: formatTime(endTimeStr),
+              duration: 30,
+              type: isOvernight ? 'overnight' : 'daytime',
+            });
+          }
         }
 
-        // Move to next slot
-        currentMinute = nextMinute;
-        currentHour = nextHour;
+        currentMinutes = nextMinutes;
 
         // Safety check to prevent infinite loops
         if (slots.length > 200) break;
@@ -273,6 +287,10 @@ export function FreeTimeFinder() {
     );
   }
 
+  const startTotal = timeFrame.startMinutes;
+  const endTotal = timeFrame.endMinutes;
+  const spansMidnight = endTotal <= startTotal;
+
   return (
     <div className="flex flex-col h-screen bg-background">
       <MobileHeader
@@ -333,25 +351,15 @@ export function FreeTimeFinder() {
             </Select>
           </div>
 
-          {/* Time Frame Selection */}
+          {/* Time Frame Selection - NEW DUAL SLIDER */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Time Frame</Label>
-              <span className="text-xs text-muted-foreground">
-                Max 48 hours
-              </span>
-            </div>
-            <TimeRangePicker
-              startTime={startTime}
-              endTime={endTime}
-              onStartTimeChange={setStartTime}
-              onEndTimeChange={setEndTime}
-              maxDuration={48}
+            <DualTimeSlider
+              value={timeFrame}
+              onChange={setTimeFrame}
+              step={15}
             />
             <p className="text-xs text-muted-foreground">
-              {getTimeInMinutes(endTime) <= getTimeInMinutes(startTime)
-                ? 'Spans across midnight'
-                : 'Same day time frame'}
+              {spansMidnight ? 'Spans across midnight' : 'Same day time frame'}
             </p>
           </div>
 
