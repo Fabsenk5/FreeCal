@@ -14,7 +14,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { EventWithAttendees } from '@/hooks/useEvents';
 import { parseICS, ParsedEvent } from '@/utils/icsParser';
 import { ImportMethodDialog } from '@/components/calendar/ImportMethodDialog';
-import { parseCalendarScreenshot, parseGermanCalendarText } from '@/utils/ocrParser';
+import { ScreenshotImportDialog } from '@/components/calendar/ScreenshotImportDialog';
+import { OCREventData } from '@/utils/calendarOCR';
 
 interface CreateEventProps {
   eventToEdit?: EventWithAttendees | null;
@@ -44,9 +45,8 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
   const [isTentative, setIsTentative] = useState(false);
   const [alerts, setAlerts] = useState<string[]>([]);
   const icsFileInputRef = useRef<HTMLInputElement>(null);
-  const ocrFileInputRef = useRef<HTMLInputElement>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
-  const [processingOCR, setProcessingOCR] = useState(false);
+  const [showScreenshotDialog, setShowScreenshotDialog] = useState(false);
 
   // Convert 12-hour time format to 24-hour
   const convertTo24Hour = (time12: string): string => {
@@ -126,6 +126,107 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
     window.addEventListener('navigateToCreateEvent', handlePrefill);
     return () => window.removeEventListener('navigateToCreateEvent', handlePrefill);
   }, []);
+
+  const handleImportCalendar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.currentTarget.files?.[0];
+    if (!file) return;
+
+    try {
+      const content = await file.text();
+      const parsed = parseICS(content);
+      
+      if (!parsed) {
+        toast.error('Could not parse calendar file', {
+          description: 'Please make sure the file is a valid IC
+S file.',
+        });
+        return;
+      }
+
+      // Pre-fill form with parsed data
+      setTitle(parsed.title);
+      setNotes(parsed.description || '');
+      setStartDate(parsed.startDate);
+      setEndDate(parsed.endDate);
+      setStartTime(parsed.startTime || '');
+      setEndTime(parsed.endTime || '');
+      setIsAllDay(parsed.isAllDay);
+      setNotes(parsed.description || '');
+      
+      if (parsed.recurrenceRule) {
+        // Try to detect recurrence type from RRULE
+        if (parsed.recurrenceRule.includes('FREQ=DAILY')) {
+          setRecurrenceType('daily');
+        } else if (parsed.recurrenceRule.includes('FREQ=WEEKLY')) {
+          setRecurrenceType('weekly');
+        } else if (parsed.recurrenceRule.includes('FREQ=MONTHLY')) {
+          setRecurrenceType('monthly');
+        } else {
+          setRecurrenceType('custom');
+        }
+      }
+
+      // Store iOS metadata for later use
+      if (parsed.alerts) {
+        localStorage.setItem('importedAlerts', JSON.stringify(parsed.alerts));
+        setAlerts(parsed.alerts);
+      }
+      if (parsed.attendees) {
+        localStorage.setItem('importedAttendees', JSON.stringify(parsed.attendees));
+      }
+      if (parsed.isTentative !== undefined) {
+        localStorage.setItem('importedIsTentative', JSON.stringify(parsed.isTentative));
+        setIsTentative(parsed.isTentative);
+      }
+      if (parsed.url) {
+        localStorage.setItem('importedUrl', parsed.url);
+        setEventUrl(parsed.url);
+      }
+      if (parsed.location) {
+        localStorage.setItem('importedLocation', parsed.location);
+        setLocation(parsed.location);
+      }
+
+      toast.success('Event imported successfully!', {
+        description: `Imported: ${parsed.title}`,
+      });
+    } catch (error) {
+      console.error('Error importing calendar:', error);
+      toast.error('Error importing calendar', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
+    // Reset file input
+    e.currentTarget.value = '';
+  };
+
+  const handleOCRSuccess = (data: OCREventData) => {
+    // Pre-fill form with OCR data
+    setTitle(data.title);
+    setStartDate(data.startDate);
+    setEndDate(data.endDate);
+    setIsAllDay(data.isAllDay);
+    
+    if (data.startTime) setStartTime(data.startTime);
+    if (data.endTime) setEndTime(data.endTime);
+    if (data.location) setLocation(data.location);
+    if (data.description) setNotes(data.description);
+    if (data.url) setEventUrl(data.url);
+    if (data.isTentative !== undefined) setIsTentative(data.isTentative);
+
+    toast.success('Event imported from screenshot!', {
+      description: `Imported: ${data.title}`,
+    });
+  };
+
+  const handleSelectOCR = () => {
+    setShowScreenshotDialog(true);
+  };
+
+  const handleSelectICS = () => {
+    icsFileInputRef.current?.click();
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -294,152 +395,6 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
     setIsTentative(false);
   };
 
-  const handleImportCalendar = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.currentTarget.files?.[0];
-    if (!file) return;
-
-    try {
-      const content = await file.text();
-      const parsed = parseICS(content);
-      
-      if (!parsed) {
-        toast.error('Could not parse calendar file', {
-          description: 'Please make sure the file is a valid IC\nS file.',
-        });
-        return;
-      }
-
-      // Pre-fill form with parsed data
-      setTitle(parsed.title);
-      setNotes(parsed.description || '');
-      setStartDate(parsed.startDate);
-      setEndDate(parsed.endDate);
-      setStartTime(parsed.startTime || '');
-      setEndTime(parsed.endTime || '');
-      setIsAllDay(parsed.isAllDay);
-      setNotes(parsed.description || '');
-      
-      if (parsed.recurrenceRule) {
-        // Try to detect recurrence type from RRULE
-        if (parsed.recurrenceRule.includes('FREQ=DAILY')) {
-          setRecurrenceType('daily');
-        } else if (parsed.recurrenceRule.includes('FREQ=WEEKLY')) {
-          setRecurrenceType('weekly');
-        } else if (parsed.recurrenceRule.includes('FREQ=MONTHLY')) {
-          setRecurrenceType('monthly');
-        } else {
-          setRecurrenceType('custom');
-        }
-      }
-
-      // Store iOS metadata for later use
-      if (parsed.alerts) {
-        localStorage.setItem('importedAlerts', JSON.stringify(parsed.alerts));
-        setAlerts(parsed.alerts);
-      }
-      if (parsed.attendees) {
-        localStorage.setItem('importedAttendees', JSON.stringify(parsed.attendees));
-      }
-      if (parsed.isTentative !== undefined) {
-        localStorage.setItem('importedIsTentative', JSON.stringify(parsed.isTentative));
-        setIsTentative(parsed.isTentative);
-      }
-      if (parsed.url) {
-        localStorage.setItem('importedUrl', parsed.url);
-        setEventUrl(parsed.url);
-      }
-      if (parsed.location) {
-        localStorage.setItem('importedLocation', parsed.location);
-        setLocation(parsed.location);
-      }
-
-      toast.success('Event imported successfully!', {
-        description: `Imported: ${parsed.title}`,
-      });
-    } catch (error) {
-      console.error('Error importing calendar:', error);
-      toast.error('Error importing calendar', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-
-    // Reset file input
-    e.currentTarget.value = '';
-  };
-
-  const handleOCRImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.currentTarget.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file', {
-        description: 'Supported formats: JPG, PNG, HEIC, etc.',
-      });
-      return;
-    }
-
-    setProcessingOCR(true);
-
-    try {
-      // Try to parse the screenshot using OCR
-      const parsed = await parseCalendarScreenshot(file);
-
-      if (parsed) {
-        // Pre-fill form with parsed data
-        setTitle(parsed.title);
-        setStartDate(parsed.startDate);
-        setEndDate(parsed.endDate);
-        setIsAllDay(parsed.isAllDay);
-        
-        if (parsed.startTime) setStartTime(parsed.startTime);
-        if (parsed.endTime) setEndTime(parsed.endTime);
-        if (parsed.location) setLocation(parsed.location);
-        if (parsed.description) setNotes(parsed.description);
-
-        toast.success('Event imported from screenshot!', {
-          description: `Imported: ${parsed.title}`,
-        });
-      } else {
-        // Fallback: Show image preview and let user manually enter
-        // For the test case (München event), we can parse it manually
-        toast.info('OCR processing...', {
-          description: 'Please review and adjust the imported details.',
-        });
-
-        // Try German calendar format parsing as fallback
-        // In a real app, this would use actual OCR text
-        const testParsed = parseGermanCalendarText('München\nGanztägig von Mi. 17. Dez. 2025 bis Fr. 19. Dez. 2025');
-        
-        if (testParsed) {
-          setTitle(testParsed.title);
-          setStartDate(testParsed.startDate);
-          setEndDate(testParsed.endDate);
-          setIsAllDay(testParsed.isAllDay);
-          
-          toast.success('Event details extracted!', {
-            description: 'Please verify and adjust as needed.',
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error processing screenshot:', error);
-      toast.error('Error processing screenshot', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    } finally {
-      setProcessingOCR(false);
-      e.currentTarget.value = '';
-    }
-  };
-
-  const handleSelectOCR = () => {
-    ocrFileInputRef.current?.click();
-  };
-
-  const handleSelectICS = () => {
-    icsFileInputRef.current?.click();
-  };
-
   const toggleAttendee = (userId: string) => {
     setAttendees((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
@@ -488,27 +443,16 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
                 size="sm"
                 onClick={() => setShowImportDialog(true)}
                 className="flex items-center gap-1"
-                disabled={processingOCR}
               >
-                {processingOCR ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Upload className="w-4 h-4" />
-                )}
+                <Upload className="w-4 h-4" />
                 <span className="text-xs">Import</span>
               </Button>
+              {/* Hidden ICs file input */}
               <input
                 ref={icsFileInputRef}
                 type="file"
                 accept=".ics,.ical,.ifb,.icalendar"
                 onChange={handleImportCalendar}
-                className="hidden"
-              />
-              <input
-                ref={ocrFileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleOCRImport}
                 className="hidden"
               />
             </div>
@@ -521,6 +465,12 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
         onOpenChange={setShowImportDialog}
         onSelectOCR={handleSelectOCR}
         onSelectICS={handleSelectICS}
+      />
+
+      <ScreenshotImportDialog
+        open={showScreenshotDialog}
+        onOpenChange={setShowScreenshotDialog}
+        onOCRSuccess={handleOCRSuccess}
       />
 
       <div className="flex-1 overflow-y-auto pb-24 px-4">
