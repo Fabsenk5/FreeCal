@@ -339,7 +339,7 @@ export function Profile() {
         <PendingRequestsSection />
 
         {/* Admin Panel for admin users */}
-        {profile?.role === 'admin' && <AdminPanel />}
+        {profile?.email === 'fabiank5@hotmail.com' && <AdminPanel />}
 
         {/* About section */}
         <div className="pb-6">
