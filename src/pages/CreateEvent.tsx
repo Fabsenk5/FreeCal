@@ -9,14 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useRelationships } from '@/hooks/useRelationships';
 import { Calendar, Upload, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase, Database } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { EventWithAttendees } from '@/hooks/useEvents';
 
-type EventInsert = Database['public']['Tables']['events']['Insert'];
-type AttendeeInsert = Database['public']['Tables']['event_attendees']['Insert'];
+interface CreateEventProps {
+  eventToEdit?: EventWithAttendees | null;
+  onEventSaved?: () => void;
+}
 
-export function CreateEvent({ onEventSaved }: { onEventSaved?: () => void }) {
+export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
   const { user, profile } = useAuth();
   const { relationships, loading: relLoading } = useRelationships();
 
@@ -35,38 +37,38 @@ export function CreateEvent({ onEventSaved }: { onEventSaved?: () => void }) {
   const [recurrenceDays, setRecurrenceDays] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Listen for edit event
+  // FIXED: Load event data from prop when editing
   useEffect(() => {
-    const handleEditEvent = (e: CustomEvent) => {
-      const event = e.detail as EventWithAttendees;
-      setEditingEventId(event.id);
-      setTitle(event.title);
+    if (eventToEdit) {
+      console.log('CreateEvent: Loading event to edit:', eventToEdit);
       
-      const start = new Date(event.start_time);
-      const end = new Date(event.end_time);
+      setEditingEventId(eventToEdit.id);
+      setTitle(eventToEdit.title);
+      
+      const start = new Date(eventToEdit.start_time);
+      const end = new Date(eventToEdit.end_time);
       
       setStartDate(start.toISOString().split('T')[0]);
       setStartTime(start.toTimeString().slice(0, 5));
       setEndDate(end.toISOString().split('T')[0]);
       setEndTime(end.toTimeString().slice(0, 5));
-      setIsAllDay(event.is_all_day);
-      setRecurrenceType(event.recurrence_type);
-      setRecurrenceDays(event.recurrence_days || []);
-      setRecurrenceInterval(event.recurrence_interval || 1);
-      setAttendees(event.attendees || []);
-      setEventColor(event.color);
-      setNotes(event.description || '');
+      setIsAllDay(eventToEdit.is_all_day);
+      setRecurrenceType(eventToEdit.recurrence_type);
+      setRecurrenceDays(eventToEdit.recurrence_days || []);
+      setRecurrenceInterval(eventToEdit.recurrence_interval || 1);
+      setAttendees(eventToEdit.attendees || []);
+      setEventColor(eventToEdit.color || eventToEdit.creator_color || profile?.calendar_color || 'hsl(217, 91%, 60%)');
+      setNotes(eventToEdit.description || '');
       
       toast.info('Editing event', {
         description: 'Update the details and save.',
       });
-    };
+    }
+  }, [eventToEdit, profile?.calendar_color]);
 
-    window.addEventListener('editEvent', handleEditEvent as EventListener);
-    return () => window.removeEventListener('editEvent', handleEditEvent as EventListener);
-  }, []);
-
-  const handleSave = async () => {
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
     if (!title.trim()) {
       toast.error('Please enter an event title');
       return;
@@ -109,6 +111,7 @@ export function CreateEvent({ onEventSaved }: { onEventSaved?: () => void }) {
       };
 
       if (editingEventId) {
+        // UPDATE existing event
         const { error: updateError } = await supabase
           .from('events')
           .update(eventData)
@@ -122,6 +125,7 @@ export function CreateEvent({ onEventSaved }: { onEventSaved?: () => void }) {
           return;
         }
 
+        // Update attendees
         await supabase
           .from('event_attendees')
           .delete()
@@ -137,7 +141,12 @@ export function CreateEvent({ onEventSaved }: { onEventSaved?: () => void }) {
         }
 
         toast.success('Event updated successfully!');
+        resetForm();
+        if (onEventSaved) {
+          onEventSaved();
+        }
       } else {
+        // CREATE new event
         const { data: newEvent, error: eventError } = await supabase
           .from('events')
           .insert(eventData)
@@ -152,6 +161,7 @@ export function CreateEvent({ onEventSaved }: { onEventSaved?: () => void }) {
           return;
         }
 
+        // Add creator and attendees
         const attendeeRecords = [
           { event_id: newEvent.id, user_id: user.id },
           ...attendees.map((attendeeId) => ({
@@ -169,9 +179,11 @@ export function CreateEvent({ onEventSaved }: { onEventSaved?: () => void }) {
         }
 
         toast.success('Event created successfully!');
+        resetForm();
+        if (onEventSaved) {
+          onEventSaved();
+        }
       }
-
-      resetForm();
     } catch (err) {
       console.error('Save error:', err);
       toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`, {
@@ -229,17 +241,34 @@ export function CreateEvent({ onEventSaved }: { onEventSaved?: () => void }) {
   return (
     <div className="flex flex-col h-screen bg-background">
       <MobileHeader
-        title="Create Event"
+        title={editingEventId ? "Edit Event" : "Create Event"}
+        leftAction={
+          editingEventId ? (
+            <button 
+              className="text-sm text-muted-foreground" 
+              onClick={() => {
+                resetForm();
+                if (onEventSaved) {
+                  onEventSaved();
+                }
+              }}
+            >
+              Cancel
+            </button>
+          ) : undefined
+        }
         rightAction={
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleImportCalendar}
-            className="flex items-center gap-1"
-          >
-            <Upload className="w-4 h-4" />
-            <span className="text-xs">Import</span>
-          </Button>
+          !editingEventId ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleImportCalendar}
+              className="flex items-center gap-1"
+            >
+              <Upload className="w-4 h-4" />
+              <span className="text-xs">Import</span>
+            </Button>
+          ) : undefined
         }
       />
 
