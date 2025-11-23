@@ -84,14 +84,30 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       return;
     }
 
+    // VALIDATE: End date/time must be after start date/time
+    const startDateTime = isAllDay
+      ? new Date(startDate)
+      : new Date(`${startDate}T${startTime}`);
+
+    const endDateTime = isAllDay
+      ? new Date(endDate || startDate)
+      : new Date(`${endDate || startDate}T${endTime || startTime}`);
+
+    if (endDateTime <= startDateTime) {
+      toast.error('End time must be after start time', {
+        description: 'Please adjust your event dates and times.',
+      });
+      return;
+    }
+
     setSaving(true);
 
     try {
-      const startDateTime = isAllDay
+      const startDateTimeIso = isAllDay
         ? new Date(startDate).toISOString()
         : new Date(`${startDate}T${startTime}`).toISOString();
 
-      const endDateTime = isAllDay
+      const endDateTimeIso = isAllDay
         ? new Date(endDate || startDate).toISOString()
         : new Date(`${endDate || startDate}T${endTime || startTime}`).toISOString();
 
@@ -99,8 +115,8 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
         user_id: user.id,
         title: title.trim(),
         description: notes.trim() || null,
-        start_time: startDateTime,
-        end_time: endDateTime,
+        start_time: startDateTimeIso,
+        end_time: endDateTimeIso,
         is_all_day: isAllDay,
         color: eventColor,
         recurrence_type: recurrenceType,
