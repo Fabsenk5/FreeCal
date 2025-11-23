@@ -127,8 +127,9 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
         continue;
       }
       
-      // Check if we've hit the date/time line
+      // Check if we've hit the date/time line (including multi-day "von...bis" pattern)
       if (line.match(/^(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i) ||
+          line.match(/^von\s+\d{1,2}:\d{2}/i) || // Multi-day pattern: "von 19:00 Mo..."
           line.match(/^\d{1,2}\.\s*(Jan|Feb|Mär|Mar|Apr|Mai|May|Jun|Jul|Aug|Sep|Okt|Oct|Nov|Dez|Dec)/i) ||
           line.match(/^\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}/) || // Time range
           line.match(/^(Ganztägig|All-day)/i)) {
@@ -180,25 +181,34 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
                      text.includes('All-day') || 
                      text.includes('den ganzen Tag');
 
-    // Parse time ranges - look for the pattern in the actual content lines
+    // Parse time ranges - handle both single-day and multi-day formats
     let startTime: string | undefined;
     let endTime: string | undefined;
     
     if (!isAllDay) {
-      // Find time range in content (not in status bar)
-      const timeRangePattern = /(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})/;
+      // First, try multi-day pattern: "von HH:MM Mo. DD. Mon. YYYY bis HH:MM Di. DD. Mon. YYYY"
+      const multiDayPattern = /von\s+(\d{1,2}):(\d{2}).*?bis\s+(\d{1,2}):(\d{2})/i;
+      const multiDayMatch = text.match(multiDayPattern);
       
-      for (const line of lines) {
-        // Skip status bar time (at start of text)
-        if (lines.indexOf(line) === 0 && line.match(/^\d{2}:\d{2}/)) {
-          continue;
-        }
+      if (multiDayMatch) {
+        startTime = `${multiDayMatch[1].padStart(2, '0')}:${multiDayMatch[2]}`;
+        endTime = `${multiDayMatch[3].padStart(2, '0')}:${multiDayMatch[4]}`;
+      } else {
+        // Fall back to single-day time range: "18:30 - 20:30"
+        const timeRangePattern = /(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})/;
         
-        const match = line.match(timeRangePattern);
-        if (match) {
-          startTime = `${match[1].padStart(2, '0')}:${match[2]}`;
-          endTime = `${match[3].padStart(2, '0')}:${match[4]}`;
-          break;
+        for (const line of lines) {
+          // Skip status bar time (at start of text)
+          if (lines.indexOf(line) === 0 && line.match(/^\d{2}:\d{2}/)) {
+            continue;
+          }
+          
+          const match = line.match(timeRangePattern);
+          if (match) {
+            startTime = `${match[1].padStart(2, '0')}:${match[2]}`;
+            endTime = `${match[3].padStart(2, '0')}:${match[4]}`;
+            break;
+          }
         }
       }
     }
