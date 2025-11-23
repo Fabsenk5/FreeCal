@@ -100,12 +100,28 @@ export function AdminPanel() {
         updates.approved_by = user.id;
       }
 
-      const { error } = await supabase
+      console.log('Attempting to update user:', {
+        userId: actionDialog.userId,
+        updates,
+        currentUserId: user.id
+      });
+
+      const { data, error } = await supabase
         .from('profiles')
         .update(updates)
-        .eq('id', actionDialog.userId);
+        .eq('id', actionDialog.userId)
+        .select();
 
-      if (error) throw error;
+      console.log('Update result:', { data, error });
+
+      if (error) {
+        console.error('Database error details:', error);
+        toast.error(`Database Error: ${error.message}`, {
+          description: error.details || 'Check console for details',
+          duration: 10000,
+        });
+        throw error;
+      }
 
       toast.success(
         actionDialog.action === 'approve' 
@@ -117,7 +133,9 @@ export function AdminPanel() {
       await fetchUsers();
     } catch (error) {
       console.error('Error updating user:', error);
-      toast.error('Failed to update user status');
+      if (!(error as any).message?.includes('Database Error:')) {
+        toast.error('Failed to update user status');
+      }
     } finally {
       setProcessing(false);
       setActionDialog({ open: false, userId: null, userName: '', action: null });
