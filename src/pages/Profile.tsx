@@ -339,14 +339,7 @@ export function Profile() {
         <PendingRequestsSection />
 
         {/* Admin Panel for admin users */}
-        {(() => {
-          console.log('Profile email check:', {
-            profileEmail: profile?.email,
-            shouldShowAdmin: profile?.email === 'fabiank5@hotmail.com',
-            profile: profile
-          });
-          return profile?.email === 'fabiank5@hotmail.com' && <AdminPanel />;
-        })()}
+        {profile?.email === 'fabiank5@hotmail.com' && <AdminPanel />}
 
         {/* About section */}
         <div className="pb-6">
