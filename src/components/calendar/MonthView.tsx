@@ -16,7 +16,24 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect }: M
 
   const getEventsForDate = (date: Date | null): CalendarEvent[] => {
     if (!date) return [];
-    return events.filter(event => isSameDay(new Date(event.startDate), date));
+    // Include events that start on this date OR span across this date
+    return events.filter(event => {
+      const startDate = new Date(event.startDate);
+      const endDate = new Date(event.endDate);
+      
+      // Set time to midnight for accurate date-only comparison
+      const checkDate = new Date(date);
+      checkDate.setHours(0, 0, 0, 0);
+      
+      const eventStart = new Date(startDate);
+      eventStart.setHours(0, 0, 0, 0);
+      
+      const eventEnd = new Date(endDate);
+      eventEnd.setHours(0, 0, 0, 0);
+      
+      // Event is on this date if the date falls between start and end (inclusive)
+      return checkDate >= eventStart && checkDate <= eventEnd;
+    });
   };
 
   return (

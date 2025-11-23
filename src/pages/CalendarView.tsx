@@ -212,6 +212,18 @@ export function CalendarView() {
               <div className="flex gap-2">
                 <Button
                   className="flex-1"
+                  variant="outline"
+                  onClick={() => {
+                    // Navigate to create event page with event data for editing
+                    const eventData = encodeURIComponent(JSON.stringify(selectedEvent));
+                    window.dispatchEvent(new CustomEvent('editEvent', { detail: selectedEvent }));
+                    setSelectedEventId(null);
+                  }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  className="flex-1"
                   variant="destructive"
                   onClick={handleDeleteEvent}
                 >
