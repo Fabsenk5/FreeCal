@@ -55,45 +55,81 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
     const text = ocrText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-    // Extract title (usually first line or before date info)
+    // Extract title by finding the line between UI elements and date info
     let title = '';
-    let titleIndex = 0;
+    let titleIndex = -1;
     
-    // Common iOS calendar UI elements to skip
+    // Common iOS calendar UI elements to skip (more comprehensive)
     const skipPatterns = [
       /^\d{1,2}:\d{2}/, // Time in HH:MM format (status bar)
-      /^(Dezember|December|Januar|January|Februar|February|März|March|April|Mai|May|Juni|June|Juli|July|August|September|Oktober|October|November)$/i, // Month names
-      /^(Bearbeiten|Edit|Kalender|Calendar|Hinweis|Notes|Ort|Location|Privat|Private|Work|Arbeit)$/i, // UI labels
-      /^[◀▶←→]+$/, // Navigation arrows
+      /^</, // Back button arrow
+      /^[<>◀▶←→]+/, // Navigation arrows
+      /^(Dezember|December|Januar|January|Februar|February|März|March|April|Mai|May|Juni|June|Juli|July|August|September|Oktober|October|November)\b/i, // Month names (word boundary)
+      /^(Bearbeiten|Edit|Kalender|Calendar|Hinweis|Notes|Note|Ort|Location|Privat|Private|Work|Arbeit|Ohne|None)$/i, // UI labels (exact match)
       /^[📅🔔⏰]+$/, // Emoji icons
       /^\d{1,2}%$/, // Battery percentage
-      /^[A-Z]{2,}$/, // ALL CAPS (likely UI)
+      /^[A-Z\s]{3,}$/, // ALL CAPS (likely UI)
       /^(von|bis|from|to|am)$/i, // Prepositions alone
+      /^(Ereignis löschen|Delete Event|Abbrechen|Cancel)$/i, // Action buttons
     ];
+    
+    // Find the title by looking for text that:
+    // 1. Is NOT a UI element
+    // 2. Comes BEFORE the date line (Ganztägig or date pattern)
+    // 3. Is meaningful (2-100 chars)
+    let foundDateLine = false;
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       
-      // Skip if matches any skip pattern
+      // Check if we've hit the date line
+      if (line.match(/^(Ganztägig|All-day|den ganzen Tag)/i) || 
+          line.match(/\d{1,2}\.\s*\w{3}\.\s*\d{4}/) ||
+          line.match(/von.*bis/i)) {
+        foundDateLine = true;
+        break;
+      }
+      
+      // Skip obvious UI elements
       if (skipPatterns.some(pattern => pattern.test(line))) {
         continue;
       }
       
-      // Skip if contains date pattern
-      if (line.match(/\d{1,2}\.\s*\w{3}\.\s*\d{4}/)) {
+      // Skip lines with special chars that indicate UI (except umlauts and hyphens)
+      if (line.match(/[<>◀▶←→•⋅]/)) {
         continue;
       }
       
-      // Skip if it's "Ganztägig" or similar
-      if (line.match(/^(Ganztägig|All-day|den ganzen Tag)/i)) {
-        continue;
-      }
-      
-      // Found title - should be meaningful text
-      if (line.length >= 2 && !line.match(/^[\d\s:=\-_]+$/)) {
-        title = line;
+      // Check if line is reasonable title length and contains letters
+      if (line.length >= 2 && line.length <= 100 && line.match(/[a-zA-ZäöüÄÖÜß]/)) {
+        // This looks like a potential title
+        title = line.replace(/^[<>◀▶←→\s]+/, '').trim(); // Clean any remaining arrows
         titleIndex = i;
         break;
+      }
+    }
+
+    // Fallback: if no title found, look for the longest meaningful line before date
+    if (!title) {
+      let maxLength = 0;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Stop at date line
+        if (line.match(/^(Ganztägig|All-day)/i) || line.match(/\d{1,2}\.\s*\w{3}\.\s*\d{4}/)) {
+          break;
+        }
+        
+        // Skip UI elements
+        if (skipPatterns.some(pattern => pattern.test(line))) {
+          continue;
+        }
+        
+        // Find longest line
+        if (line.length > maxLength && line.length >= 2 && line.length <= 100) {
+          title = line.replace(/^[<>◀▶←→\s]+/, '').trim();
+          maxLength = line.length;
+        }
       }
     }
 
@@ -110,6 +146,7 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
     const englishDatePattern = /(\d{1,2})[\./\-](\d{1,2})[\./\-](\d{4})/g;
     const englishMatches = [...text.matchAll(englishDatePattern)];
 
+    // The rest of the original code continues here unchanged
     let startDate = '';
     let endDate = '';
 

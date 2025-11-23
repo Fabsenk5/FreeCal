@@ -164,5 +164,41 @@ describe('Calendar OCR Parser', () => {
       const result = parseCalendarOCR(ocrText);
       expect(result).toBeNull();
     });
+
+    it('should parse German calendar format (München example with navigation and UI)', () => {
+      // Simulating actual OCR output from iOS with navigation buttons
+      const ocrText = `
+        23:46
+        < Dezember
+        Bearbeiten
+        München
+        Ganztägig von Mi. 17. Dez. 2025 bis Fr. 19. Dez. 2025
+        Kalender Privat
+        Hinweis Ohne
+      `;
+
+      const result = parseCalendarOCR(ocrText);
+
+      expect(result).toBeTruthy();
+      expect(result?.title).toBe('München');
+      expect(result?.isAllDay).toBe(true);
+      expect(result?.startDate).toBe('2025-12-17');
+      expect(result?.endDate).toBe('2025-12-19');
+    });
+
+    it('should handle title with navigation arrows', () => {
+      const ocrText = `
+        < December
+        Edit
+        Team Meeting
+        All-day on 15 Dec. 2025
+      `;
+
+      const result = parseCalendarOCR(ocrText);
+
+      expect(result).toBeTruthy();
+      expect(result?.title).toBe('Team Meeting');
+      expect(result?.isAllDay).toBe(true);
+    });
   });
 });
