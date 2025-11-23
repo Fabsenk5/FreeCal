@@ -197,21 +197,33 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
         endTime = `${multiDayMatch[3].padStart(2, '0')}:${multiDayMatch[4]}`;
       } else {
         console.log('Multi-day pattern not matched, trying single-day pattern');
-        // Fall back to single-day time range: "18:30 - 20:30"
-        const timeRangePattern = /(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})/;
+        // Fall back to single-day time range: "18:30 - 20:30" or "18:30 – 20:30"
+        // Try both in full text and line-by-line
+        const timeRangePattern = /(\d{1,2}):(\d{2})\s*[-–—]\s*(\d{1,2}):(\d{2})/;
         
-        for (const line of lines) {
-          // Skip status bar time (at start of text)
-          if (lines.indexOf(line) === 0 && line.match(/^\d{2}:\d{2}/)) {
-            continue;
-          }
-          
-          const match = line.match(timeRangePattern);
-          if (match) {
-            console.log('Single-day time range matched:', match);
-            startTime = `${match[1].padStart(2, '0')}:${match[2]}`;
-            endTime = `${match[3].padStart(2, '0')}:${match[4]}`;
-            break;
+        // First try in full text (skip first line to avoid status bar)
+        const textWithoutFirstLine = lines.slice(1).join('\n');
+        const fullTextMatch = textWithoutFirstLine.match(timeRangePattern);
+        
+        if (fullTextMatch) {
+          console.log('Single-day time range matched in full text:', fullTextMatch);
+          startTime = `${fullTextMatch[1].padStart(2, '0')}:${fullTextMatch[2]}`;
+          endTime = `${fullTextMatch[3].padStart(2, '0')}:${fullTextMatch[4]}`;
+        } else {
+          // Try line by line as fallback
+          for (const line of lines) {
+            // Skip status bar time (at start of text)
+            if (lines.indexOf(line) === 0 && line.match(/^\d{2}:\d{2}/)) {
+              continue;
+            }
+            
+            const match = line.match(timeRangePattern);
+            if (match) {
+              console.log('Single-day time range matched in line:', match);
+              startTime = `${match[1].padStart(2, '0')}:${match[2]}`;
+              endTime = `${match[3].padStart(2, '0')}:${match[4]}`;
+              break;
+            }
           }
         }
       }
