@@ -155,52 +155,34 @@ export function FreeTimeFinder() {
         const currentTime = getTimeFromMinutes(currentMinutes);
         const nextTime = getTimeFromMinutes(nextMinutes);
 
-        // For Day 1 slots
-        if (currentTime.day === 0) {
-          const slotDate = new Date(date);
-          if (isTimeSlotFree(slotDate, currentTime.hours, nextTime.hours)) {
-            const startTimeStr = `${currentTime.hours.toString().padStart(2, '0')}:${currentTime.minutes
-              .toString()
-              .padStart(2, '0')}`;
-            const endTimeStr = `${nextTime.hours.toString().padStart(2, '0')}:${nextTime.minutes
-              .toString()
-              .padStart(2, '0')}`;
+        // Determine which date to use for this slot
+        let slotDate = new Date(date);
 
-            const isOvernight = nextTime.hours < currentTime.hours || (currentTime.hours >= 20 || nextTime.hours <= 6);
-
-            slots.push({
-              date: new Date(slotDate),
-              startTime: formatTime(startTimeStr),
-              endTime: formatTime(endTimeStr),
-              duration: 30,
-              type: isOvernight ? 'overnight' : 'daytime',
-            });
-          }
+        // If both times are on Day 2, use next day
+        if (currentTime.day === 1 && nextTime.day === 1) {
+          slotDate.setDate(slotDate.getDate() + 1);
         }
 
-        // For Day 2 slots (next day)
-        if (currentTime.day === 1 || nextTime.day === 1) {
-          const slotDate = new Date(date);
-          slotDate.setDate(slotDate.getDate() + 1);
+        // If transitioning from Day 1 to Day 2, use current day (will check into next day)
+        // This is handled automatically by isTimeSlotFree when endHour < startHour
 
-          if (isTimeSlotFree(slotDate, currentTime.hours, nextTime.hours)) {
-            const startTimeStr = `${currentTime.hours.toString().padStart(2, '0')}:${currentTime.minutes
-              .toString()
-              .padStart(2, '0')}`;
-            const endTimeStr = `${nextTime.hours.toString().padStart(2, '0')}:${nextTime.minutes
-              .toString()
-              .padStart(2, '0')}`;
+        if (isTimeSlotFree(slotDate, currentTime.hours, nextTime.hours)) {
+          const startTimeStr = `${currentTime.hours.toString().padStart(2, '0')}:${currentTime.minutes
+            .toString()
+            .padStart(2, '0')}`;
+          const endTimeStr = `${nextTime.hours.toString().padStart(2, '0')}:${nextTime.minutes
+            .toString()
+            .padStart(2, '0')}`;
 
-            const isOvernight = nextTime.hours < currentTime.hours || (currentTime.hours >= 20 || nextTime.hours <= 6);
+          const isOvernight = nextTime.hours < currentTime.hours || (currentTime.hours >= 20 || nextTime.hours <= 6);
 
-            slots.push({
-              date: new Date(slotDate),
-              startTime: formatTime(startTimeStr),
-              endTime: formatTime(endTimeStr),
-              duration: 30,
-              type: isOvernight ? 'overnight' : 'daytime',
-            });
-          }
+          slots.push({
+            date: new Date(slotDate),
+            startTime: formatTime(startTimeStr),
+            endTime: formatTime(endTimeStr),
+            duration: 30,
+            type: isOvernight ? 'overnight' : 'daytime',
+          });
         }
 
         currentMinutes = nextMinutes;
