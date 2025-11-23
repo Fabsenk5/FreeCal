@@ -16,7 +16,7 @@ import { EventWithAttendees } from '@/hooks/useEvents';
 type EventInsert = Database['public']['Tables']['events']['Insert'];
 type AttendeeInsert = Database['public']['Tables']['event_attendees']['Insert'];
 
-export function CreateEvent() {
+export function CreateEvent({ onEventSaved }: { onEventSaved?: () => void }) {
   const { user, profile } = useAuth();
   const { relationships, loading: relLoading } = useRelationships();
 
@@ -442,20 +442,37 @@ export function CreateEvent() {
             />
           </div>
 
-          {/* Submit button */}
-          <Button type="submit" className="w-full" disabled={saving}>
-            {saving ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creating...
-              </>
-            ) : (
-              <>
-                <Calendar className="w-4 h-4 mr-2" />
-                Create Event
-              </>
+          {/* Submit buttons */}
+          <div className="space-y-2">
+            <Button type="submit" className="w-full" disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {editingEventId ? 'Updating...' : 'Creating...'}
+                </>
+              ) : (
+                <>
+                  <Calendar className="w-4 h-4 mr-2" />
+                  {editingEventId ? 'Update Event' : 'Create Event'}
+                </>
+              )}
+            </Button>
+            {editingEventId && (
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full" 
+                onClick={() => {
+                  resetForm();
+                  if (onEventSaved) {
+                    onEventSaved();
+                  }
+                }}
+              >
+                Cancel
+              </Button>
             )}
-          </Button>
+          </div>
         </form>
       </div>
     </div>
