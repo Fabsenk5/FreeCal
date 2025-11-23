@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { ColorPicker } from '@/components/profile/ColorPicker';
+import { PendingRequestsSection } from '@/components/profile/PendingRequestsSection';
 
 export function Profile() {
   const { profile, user, updateProfile, signOut } = useAuth();
@@ -109,7 +110,7 @@ export function Profile() {
       const { error: createError } = await supabase.from('relationships').insert({
         user_id: user.id,
         related_user_id: profiles.id,
-        status: 'accepted', // Auto-accept for simplicity in this version
+        status: 'pending', // Changed from 'accepted' to 'pending'
       });
 
       if (createError) {
@@ -120,8 +121,8 @@ export function Profile() {
         return;
       }
 
-      toast.success('Relationship added!', {
-        description: `You are now connected with ${profiles.display_name}.`,
+      toast.success('Request sent!', {
+        description: `A relationship request has been sent to ${profiles.display_name}.`,
       });
 
       setSearchEmail('');
@@ -332,6 +333,9 @@ export function Profile() {
             )}
           </div>
         </div>
+
+        {/* Pending Requests */}
+        <PendingRequestsSection />
 
         {/* About section */}
         <div className="pb-6">
