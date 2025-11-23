@@ -137,7 +137,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       
       if (!parsed) {
         toast.error('Could not parse calendar file', {
-          description: 'Please make sure the file is a valid IC
+          description: 'Please make sure the file is a valid ICS file.',
 S file.',
         });
         return;
@@ -470,7 +470,7 @@ S file.',
       <ScreenshotImportDialog
         open={showScreenshotDialog}
         onOpenChange={setShowScreenshotDialog}
-        onOCRSuccess={handleOCRSuccess}
+        onImportSuccess={handleOCRSuccess}
       />
 
       <div className="flex-1 overflow-y-auto pb-24 px-4">
