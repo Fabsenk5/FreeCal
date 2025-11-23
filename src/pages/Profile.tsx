@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { useRelationships } from '@/hooks/useRelationships';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,6 +10,7 @@ import { Plus, Mail, UserPlus, Trash2, Loader2, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { ColorPicker } from '@/components/profile/ColorPicker';
 
 export function Profile() {
   const { profile, user, updateProfile, signOut } = useAuth();
@@ -18,10 +19,20 @@ export function Profile() {
 
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
   const [email, setEmail] = useState(profile?.email || '');
+  const [calendarColor, setCalendarColor] = useState(profile?.calendar_color || 'hsl(217, 91%, 60%)');
   const [saving, setSaving] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [searchEmail, setSearchEmail] = useState('');
   const [searching, setSearching] = useState(false);
+
+  // Sync state when profile updates
+  useEffect(() => {
+    if (profile) {
+      setDisplayName(profile.display_name || '');
+      setEmail(profile.email || '');
+      setCalendarColor(profile.calendar_color || 'hsl(217, 91%, 60%)');
+    }
+  }, [profile]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +47,18 @@ export function Profile() {
       console.error('Save profile error:', error);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleColorChange = async (color: string) => {
+    setCalendarColor(color);
+    
+    try {
+      await updateProfile({
+        calendar_color: color,
+      });
+    } catch (error) {
+      console.error('Update color error:', error);
     }
   };
 
@@ -184,7 +207,7 @@ export function Profile() {
           <div className="flex items-center gap-4 mb-6">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold text-primary-foreground shadow-lg"
-              style={{ backgroundColor: profile.calendar_color }}
+              style={{ backgroundColor: calendarColor }}
             >
               {profile.display_name.split(' ').map((n) => n[0]).join('')}
             </div>
@@ -200,18 +223,7 @@ export function Profile() {
           {/* Calendar color */}
           <div className="bg-card rounded-xl p-4 mb-4">
             <h3 className="text-sm font-semibold mb-3">Your Calendar Color</h3>
-            <div className="flex items-center gap-3">
-              <div
-                className="w-8 h-8 rounded-lg shadow-sm"
-                style={{ backgroundColor: profile.calendar_color }}
-              />
-              <div className="flex-1">
-                <p className="text-sm font-medium">Custom Color</p>
-                <p className="text-xs text-muted-foreground">
-                  Your events appear in this color
-                </p>
-              </div>
-            </div>
+            <ColorPicker currentColor={calendarColor} onColorChange={handleColorChange} />
           </div>
 
           {/* Personal settings */}
