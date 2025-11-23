@@ -128,12 +128,13 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
       />
 
       <div className="flex-1 overflow-y-auto pb-20 px-4">
-        {/* Month navigation */}
-        <div className="flex items-center justify-between py-4">
-          <h2 className="text-xl font-bold">
+        {/* Month navigation with color legend */}
+        <div className="flex items-center justify-between py-4 gap-4">
+          <h2 className="text-xl font-bold whitespace-nowrap">
             {getMonthName(month)} {year}
           </h2>
-          <div className="flex gap-1">
+          
+          <div className="flex gap-1 shrink-0">
             <button
               onClick={handlePrevMonth}
               className="p-2 hover:bg-accent rounded-lg transition-colors"
@@ -190,35 +191,6 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
             />
           </div>
         )}
-
-        {/* Color legend */}
-        <div className="mt-8 bg-card rounded-xl p-4">
-          <h3 className="text-sm font-semibold mb-3">Event Colors</h3>
-          <div className="space-y-2">
-            {profile && (
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: profile.calendar_color }}
-                />
-                <span className="text-sm text-muted-foreground">
-                  {profile.display_name} (You)
-                </span>
-              </div>
-            )}
-            {relationships.map((rel) => (
-              <div key={rel.id} className="flex items-center gap-2">
-                <div
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: rel.profile.calendar_color }}
-                />
-                <span className="text-sm text-muted-foreground">
-                  {rel.profile.display_name}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Event details dialog */}
