@@ -21,7 +21,8 @@ export interface CalendarEvent {
     endDate?: Date;
     daysOfWeek?: number[];
   };
-  color: 'self' | 'partner1' | 'partner2';
+  color: string; // Changed to string to support actual HSL colors
+  creatorName?: string; // Added to display creator name
 }
 
 export const MOCK_USERS: User[] = [
