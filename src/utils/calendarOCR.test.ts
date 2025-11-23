@@ -249,5 +249,39 @@ describe('Calendar OCR Parser', () => {
       expect(result?.endTime).toBe('16:45');
       expect(result?.isAllDay).toBe(false);
     });
+
+    it('should parse multi-day event with von-bis pattern', () => {
+      const ocrText = `
+        < November
+        Bearbeiten
+        Kristina Abend
+        von 19:00 Mo. 24. Nov. 2025 bis 13:00 Di. 25. Nov. 2025
+        Kalender Privat
+        Hinweis Ohne
+      `;
+
+      const result = parseCalendarOCR(ocrText);
+
+      expect(result).toBeTruthy();
+      expect(result?.title).toBe('Kristina Abend');
+      expect(result?.isAllDay).toBe(false);
+      expect(result?.startDate).toBe('2025-11-24');
+      expect(result?.endDate).toBe('2025-11-25');
+      expect(result?.startTime).toBe('19:00');
+      expect(result?.endTime).toBe('13:00');
+    });
+
+    it('should not include date/time text in title', () => {
+      const ocrText = `
+        Event Name
+        von 14:00 Fr. 1. Dez. 2025 bis 16:00 Sa. 2. Dez. 2025
+      `;
+
+      const result = parseCalendarOCR(ocrText);
+
+      expect(result?.title).toBe('Event Name');
+      expect(result?.title).not.toContain('von');
+      expect(result?.title).not.toContain('bis');
+    });
   });
 });
