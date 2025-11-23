@@ -52,8 +52,8 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
     console.log('Parsing OCR text:', ocrText);
 
     // Normalize text
-    const text = ocrText.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n');
-    const lines = text.split('\\n').map(l => l.trim()).filter(l => l.length > 0);
+    const text = ocrText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
     // Extract title (usually first line or before date info)
     let title = '';
@@ -66,7 +66,7 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
         continue;
       }
       // Found title
-      if (line.length > 0 && !line.match(/\\d{1,2}[.\\/\\-]\\s*\\d{1,2}/)) {
+      if (line.length > 0 && !line.match(/\d{1,2}[.\/-]\s*\d{1,2}/)) {
         title = line;
         titleIndex = i;
         break;
@@ -79,11 +79,11 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
                      text.includes('den ganzen Tag');
 
     // Parse German date format: "Mi. 17. Dez. 2025" or "von Mi. 17. Dez. 2025 bis Fr. 19. Dez. 2025"
-    const germanDatePattern = /(\\w+\\.)?\\s*(\\d{1,2})\\.\\s*(\\w{3})\\.\\s*(\\d{4})/gi;
+    const germanDatePattern = /(\w+\.)?\s*(\d{1,2})\.\s*(\w{3})\.\s*(\d{4})/gi;
     const dateMatches = [...text.matchAll(germanDatePattern)];
 
     // Parse English date format: "Dec 17, 2025" or "17/12/2025"
-    const englishDatePattern = /(\\d{1,2})[.\\/\\-](\\d{1,2})[.\\/\\-](\\d{4})/g;
+    const englishDatePattern = /(\d{1,2})[./-](\d{1,2})[./-](\d{4})/g;
     const englishMatches = [...text.matchAll(englishDatePattern)];
 
     let startDate = '';
@@ -128,7 +128,7 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
     }
 
     // Parse time (HH:MM format)
-    const timePattern = /(\\d{1,2}):(\\d{2})\\s*(Uhr|AM|PM)?/gi;
+    const timePattern = /(\d{1,2}):(\d{2})\s*(Uhr|AM|PM)?/gi;
     const timeMatches = [...text.matchAll(timePattern)];
 
     let startTime: string | undefined;
@@ -184,7 +184,7 @@ export function parseCalendarOCR(ocrText: string): OCREventData | null {
 
     // Extract URL
     let url: string | undefined;
-    const urlPattern = /(https?:\\/\\/[^\\s]+)/;
+    const urlPattern = /(https?:\/\/[^\s]+)/;
     const urlMatch = text.match(urlPattern);
     if (urlMatch) {
       url = urlMatch[1];
