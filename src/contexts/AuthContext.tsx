@@ -61,19 +61,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error('Error fetching profile:', error);
-        toast.error(`Profile Error: ${error.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
       } else {
         setProfile(data);
       }
     } catch (err) {
       console.error('Unexpected error fetching profile:', err);
-      toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`, {
-        description: 'Copy this error and paste in chat for help',
-        duration: 10000,
-      });
     } finally {
       setLoading(false);
     }
@@ -92,10 +84,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) {
-        toast.error(`Signup Error: ${error.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
         throw error;
       }
 
@@ -118,10 +106,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) {
-        toast.error(`Login Error: ${error.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
         throw error;
       }
 
@@ -141,10 +125,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.signOut();
 
       if (error) {
-        toast.error(`Logout Error: ${error.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
         throw error;
       }
 
@@ -165,10 +145,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', user.id);
 
       if (error) {
-        toast.error(`Update Error: ${error.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
         throw error;
       }
 
