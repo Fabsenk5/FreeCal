@@ -1,3 +1,9 @@
+/**
+ * BACKUP - Working version before UI improvements
+ * Date: 2025-11-24
+ * To restore: Copy this file back to FreeTimeFinder.tsx
+ */
+
 import { useState } from 'react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -176,13 +182,11 @@ export function FreeTimeFinder() {
 
           const isOvernight = nextTime.hours < currentTime.hours || (currentTime.hours >= 20 || nextTime.hours <= 6);
 
-          const duration = nextMinutes - currentMinutes;
-
           slots.push({
             date: new Date(slotDate),
             startTime: formatTime(startTimeStr),
             endTime: formatTime(endTimeStr),
-            duration,
+            duration: 30,
             type: isOvernight ? 'overnight' : 'daytime',
           });
         }
@@ -202,46 +206,6 @@ export function FreeTimeFinder() {
     const period = hours >= 12 ? 'PM' : 'AM';
     const hours12 = hours % 12 || 12;
     return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
-  };
-
-  const parseTime12ToMinutes = (t: string): number => {
-    const [time, period] = t.split(' ');
-    const [hStr, mStr] = time.split(':');
-    let h = parseInt(hStr, 10);
-    const m = parseInt(mStr, 10);
-    if (period === 'PM' && h !== 12) h += 12;
-    if (period === 'AM' && h === 12) h = 0;
-    return h * 60 + m;
-  };
-
-  const mergeConsecutiveSlots = (slots: FreeTimeSlot[]): FreeTimeSlot[] => {
-    if (slots.length === 0) return [];
-    const sorted = [...slots].sort((a, b) => {
-      if (a.date.getTime() !== b.date.getTime()) return a.date.getTime() - b.date.getTime();
-      const aStart = parseTime12ToMinutes(a.startTime);
-      const bStart = parseTime12ToMinutes(b.startTime);
-      return aStart - bStart;
-    });
-    const merged: FreeTimeSlot[] = [];
-    let current = sorted[0];
-    for (let i = 1; i < sorted.length; i++) {
-      const next = sorted[i];
-      const currentEnd = parseTime12ToMinutes(current.endTime);
-      const nextStart = parseTime12ToMinutes(next.startTime);
-      if (
-        current.date.getTime() === next.date.getTime() &&
-        current.type === next.type &&
-        currentEnd === nextStart
-      ) {
-        current.endTime = next.endTime;
-        current.duration = parseTime12ToMinutes(current.endTime) - parseTime12ToMinutes(current.startTime);
-      } else {
-        merged.push(current);
-        current = next;
-      }
-    }
-    merged.push(current);
-    return merged;
   };
 
   const isDateFree = (date: Date | null): boolean => {
@@ -271,21 +235,7 @@ export function FreeTimeFinder() {
     return dateEvents.length === 0;
   };
 
-  // Check if a date has any free slots available
-  const hasFreeSlotsOnDate = (date: Date | null): boolean => {
-    if (!date) return false;
-    if (selectedUsers.length === 0) return false;
-
-    const dayOfMonth = date.getDate();
-    if (dayOfMonth < dayRange[0] || dayOfMonth > dayRange[1]) return false;
-
-    // Check if there are any free slots for this specific date
-    const dateKey = date.toISOString().split('T')[0];
-    return groupedSlots[dateKey] && groupedSlots[dateKey].length > 0;
-  };
-
-  const rawFreeTimeSlots = generateFreeTimeSlots();
-  const freeTimeSlots = mergeConsecutiveSlots(rawFreeTimeSlots);
+  const freeTimeSlots = generateFreeTimeSlots();
 
   // Group slots by date for list view
   const groupedSlots = freeTimeSlots.reduce((acc, slot) => {
@@ -296,8 +246,6 @@ export function FreeTimeFinder() {
     acc[dateKey].push(slot);
     return acc;
   }, {} as Record<string, FreeTimeSlot[]>);
-
-  const hasAnyFreeSlots = freeTimeSlots.length > 0;
 
   const handleCreateFromSlot = (slot: FreeTimeSlot) => {
     toast.info('Creating event from free time slot');
@@ -367,55 +315,52 @@ export function FreeTimeFinder() {
       <div className="flex-1 overflow-y-auto pb-20 px-4">
         {/* Filters */}
         <div className="space-y-4 py-4">
-          {/* Month and Year on one line */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Month - Left */}
-            <div className="space-y-2">
-              <Label>Month</Label>
-              <Select
-                value={selectedMonth.toString()}
-                onValueChange={(value) => {
-                  setSelectedMonth(parseInt(value));
-                  // Reset day range when month changes
-                  const newDaysInMonth = new Date(selectedYear, parseInt(value) + 1, 0).getDate();
-                  setDayRange([1, newDaysInMonth]);
-                }}
-              >
-                <SelectTrigger className="bg-card">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 12 }, (_, i) => (
-                    <SelectItem key={i} value={i.toString()}>
-                      {getMonthName(i)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Year selector */}
+          <div className="space-y-2">
+            <Label>Year</Label>
+            <Select
+              value={selectedYear.toString()}
+              onValueChange={(value) => {
+                setSelectedYear(parseInt(value));
+                // Reset day range when year changes
+                const newDaysInMonth = new Date(parseInt(value), selectedMonth + 1, 0).getDate();
+                setDayRange([1, newDaysInMonth]);
+              }}
+            >
+              <SelectTrigger className="bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2025">2025</SelectItem>
+                <SelectItem value="2026">2026</SelectItem>
+                <SelectItem value="2027">2027</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-            {/* Year - Right */}
-            <div className="space-y-2">
-              <Label>Year</Label>
-              <Select
-                value={selectedYear.toString()}
-                onValueChange={(value) => {
-                  setSelectedYear(parseInt(value));
-                  // Reset day range when year changes
-                  const newDaysInMonth = new Date(parseInt(value), selectedMonth + 1, 0).getDate();
-                  setDayRange([1, newDaysInMonth]);
-                }}
-              >
-                <SelectTrigger className="bg-card">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2025">2025</SelectItem>
-                  <SelectItem value="2026">2026</SelectItem>
-                  <SelectItem value="2027">2027</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Month selector */}
+          <div className="space-y-2">
+            <Label>Month</Label>
+            <Select
+              value={selectedMonth.toString()}
+              onValueChange={(value) => {
+                setSelectedMonth(parseInt(value));
+                // Reset day range when month changes
+                const newDaysInMonth = new Date(selectedYear, parseInt(value) + 1, 0).getDate();
+                setDayRange([1, newDaysInMonth]);
+              }}
+            >
+              <SelectTrigger className="bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, i) => (
+                  <SelectItem key={i} value={i.toString()}>
+                    {getMonthName(i)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Time Frame Selection - NEW DUAL SLIDER */}
@@ -542,7 +487,7 @@ export function FreeTimeFinder() {
 
                   const dayOfMonth = date.getDate();
                   const isInRange = dayOfMonth >= dayRange[0] && dayOfMonth <= dayRange[1];
-                  const hasFree = hasFreeSlotsOnDate(date);
+                  const isFree = isDateFree(date);
                   const isToday =
                     date.getDate() === new Date().getDate() &&
                     date.getMonth() === new Date().getMonth();
@@ -552,9 +497,9 @@ export function FreeTimeFinder() {
                       key={date.toISOString()}
                       className={cn(
                         'aspect-square rounded-lg p-1 flex items-center justify-center transition-all relative text-sm font-medium',
-                        hasFree && isInRange && hasAnyFreeSlots &&
-                          'bg-yellow-200 text-yellow-800',
-                        (!hasFree || !isInRange) && 'text-muted-foreground',
+                        isFree && isInRange &&
+                          'bg-[hsl(var(--free-time)_/_0.2)] text-[hsl(var(--free-time))]',
+                        (!isFree || !isInRange) && 'text-muted-foreground',
                         !isInRange && 'opacity-30',
                         isToday && 'border-2 border-primary'
                       )}
@@ -568,7 +513,7 @@ export function FreeTimeFinder() {
               {/* Legend */}
               <div className="mt-4 pt-4 border-t border-border">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-yellow-200" />
+                  <div className="w-4 h-4 rounded bg-[hsl(var(--free-time)_/_0.2)]" />
                   <span className="text-xs text-muted-foreground">Available</span>
                 </div>
               </div>
