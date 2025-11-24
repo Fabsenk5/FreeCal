@@ -137,17 +137,23 @@ export function AdminPanel() {
         .delete()
         .eq('id', userId);
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('Profile delete error:', profileError);
+        throw profileError;
+      }
 
       // Then delete from auth.users using admin API
       const { error: authError } = await supabase.auth.admin.deleteUser(userId);
 
-      if (authError) throw authError;
+      if (authError) {
+        console.error('Auth delete error:', authError);
+        throw authError;
+      }
 
-      toast.success(`${actionDialog.userName} has been deleted successfully`);
-    } catch (error) {
+      toast.success('User deleted successfully');
+    } catch (error: any) {
       console.error('Error deleting user:', error);
-      toast.error('Failed to delete user');
+      toast.error('Failed to delete user: ' + (error.message || 'Unknown error'));
       throw error;
     }
   };
