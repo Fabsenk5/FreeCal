@@ -315,52 +315,55 @@ export function FreeTimeFinder() {
       <div className="flex-1 overflow-y-auto pb-20 px-4">
         {/* Filters */}
         <div className="space-y-4 py-4">
-          {/* Year selector */}
-          <div className="space-y-2">
-            <Label>Year</Label>
-            <Select
-              value={selectedYear.toString()}
-              onValueChange={(value) => {
-                setSelectedYear(parseInt(value));
-                // Reset day range when year changes
-                const newDaysInMonth = new Date(parseInt(value), selectedMonth + 1, 0).getDate();
-                setDayRange([1, newDaysInMonth]);
-              }}
-            >
-              <SelectTrigger className="bg-card">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="2025">2025</SelectItem>
-                <SelectItem value="2026">2026</SelectItem>
-                <SelectItem value="2027">2027</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Year and Month in one row */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Month - Left */}
+            <div className="space-y-2">
+              <Label>Month</Label>
+              <Select
+                value={selectedMonth.toString()}
+                onValueChange={(value) => {
+                  setSelectedMonth(parseInt(value));
+                  // Reset day range when month changes
+                  const newDaysInMonth = new Date(selectedYear, parseInt(value) + 1, 0).getDate();
+                  setDayRange([1, newDaysInMonth]);
+                }}
+              >
+                <SelectTrigger className="bg-card">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <SelectItem key={i} value={i.toString()}>
+                      {getMonthName(i)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Month selector */}
-          <div className="space-y-2">
-            <Label>Month</Label>
-            <Select
-              value={selectedMonth.toString()}
-              onValueChange={(value) => {
-                setSelectedMonth(parseInt(value));
-                // Reset day range when month changes
-                const newDaysInMonth = new Date(selectedYear, parseInt(value) + 1, 0).getDate();
-                setDayRange([1, newDaysInMonth]);
-              }}
-            >
-              <SelectTrigger className="bg-card">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 12 }, (_, i) => (
-                  <SelectItem key={i} value={i.toString()}>
-                    {getMonthName(i)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Year - Right */}
+            <div className="space-y-2">
+              <Label>Year</Label>
+              <Select
+                value={selectedYear.toString()}
+                onValueChange={(value) => {
+                  setSelectedYear(parseInt(value));
+                  // Reset day range when year changes
+                  const newDaysInMonth = new Date(parseInt(value), selectedMonth + 1, 0).getDate();
+                  setDayRange([1, newDaysInMonth]);
+                }}
+              >
+                <SelectTrigger className="bg-card">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2025">2025</SelectItem>
+                  <SelectItem value="2026">2026</SelectItem>
+                  <SelectItem value="2027">2027</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Time Frame Selection - NEW DUAL SLIDER */}

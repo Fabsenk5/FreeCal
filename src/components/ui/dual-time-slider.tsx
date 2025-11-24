@@ -138,19 +138,6 @@ export function DualTimeSlider({
           </div>
         </div>
       </div>
-      
-      {/* Selected range display */}
-      <div className="rounded-lg bg-muted/50 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-            <span className="text-xs font-medium">Selected Range:</span>
-          </div>
-          <span className="text-sm font-semibold">
-            {startTime} → {endTime}
-          </span>
-        </div>
-      </div>
     </div>
   )
 }
