@@ -132,9 +132,9 @@ export function DualTimeSlider({
         {/* Day markers */}
         <div className="relative h-6 px-1">
           <div className="absolute inset-x-0 top-0 flex items-center justify-between border-t border-border pt-1">
-            <span className="text-xs text-muted-foreground font-medium">Day 1 00:00</span>
-            <span className="text-xs text-muted-foreground font-medium">Day 2 00:00</span>
-            <span className="text-xs text-muted-foreground font-medium">Day 2 23:59</span>
+            <span className="text-[10px] text-muted-foreground font-medium">Day 1 00:00</span>
+            <span className="text-[10px] text-muted-foreground font-medium">Day 2 00:00</span>
+            <span className="text-[10px] text-muted-foreground font-medium">Day 2 23:59</span>
           </div>
         </div>
       </div>

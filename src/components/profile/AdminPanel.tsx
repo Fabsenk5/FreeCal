@@ -308,11 +308,17 @@ export function AdminPanel() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {actionDialog.action === 'approve' ? 'Approve User' : 'Reject User'}
+              {actionDialog.action === 'approve' 
+                ? 'Approve User' 
+                : actionDialog.action === 'delete'
+                ? '⚠️ Delete User & All Data'
+                : 'Reject User'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {actionDialog.action === 'approve' 
                 ? `Are you sure you want to approve ${actionDialog.userName}? They will gain immediate access to the app.`
+                : actionDialog.action === 'delete'
+                ? `⚠️ This will PERMANENTLY delete ${actionDialog.userName} and ALL their data including events, relationships, and attendees. This action CANNOT be undone!`
                 : `Are you sure you want to reject ${actionDialog.userName}? They will be notified and won't be able to access the app.`
               }
             </AlertDialogDescription>
@@ -322,7 +328,7 @@ export function AdminPanel() {
             <AlertDialogAction
               onClick={handleAction}
               disabled={processing}
-              className={actionDialog.action === 'reject' ? 'bg-destructive hover:bg-destructive/90' : ''}
+              className={actionDialog.action === 'reject' || actionDialog.action === 'delete' ? 'bg-destructive hover:bg-destructive/90' : ''}
             >
               {processing ? (
                 <>
@@ -330,7 +336,7 @@ export function AdminPanel() {
                   Processing...
                 </>
               ) : (
-                actionDialog.action === 'approve' ? 'Approve' : 'Reject'
+                actionDialog.action === 'approve' ? 'Approve' : actionDialog.action === 'delete' ? 'Delete Forever' : 'Reject'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
