@@ -156,11 +156,6 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
         }
       />
 
-      {/* View toggle - centered below header */}
-      <div className="flex justify-center py-2 border-b border-border bg-background/95 backdrop-blur-sm sticky top-[var(--mobile-header-height)] z-30">
-        <ViewToggle view={view} onViewChange={setView} />
-      </div>
-
       <div className="flex-1 overflow-y-auto pb-20 px-4">
         {/* Month/Year navigation with dropdowns */}
         <div className="flex items-center justify-between py-4 gap-4">
