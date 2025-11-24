@@ -40,8 +40,8 @@ export function Signup() {
     
     try {
       await signUp(email, password, displayName);
-      // Navigate immediately with success flag
-      navigate('/login?registered=true');
+      // User stays logged in, app will handle approval pending screen
+      // No redirect needed
     } catch (err: any) {
       // Show user-friendly error messages
       const errorMessage = err?.message || '';
