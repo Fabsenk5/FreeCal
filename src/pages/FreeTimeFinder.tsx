@@ -167,6 +167,143 @@ export function FreeTimeFinder() {
     return !hasConflict;
   };
 
+  // ============================================================================
+  // TIME SLOT CONSOLIDATION
+  // ============================================================================
+  // This section merges consecutive 30-minute slots into larger blocks.
+  // Example: 9:00-9:30, 9:30-10:00, 10:00-10:30 → 9:00-10:30 (1h 30min)
+  // Supports overnight and multi-day spans up to 48 hours.
+  // ============================================================================
+
+  /**
+   * Merges consecutive free time slots into larger blocks.
+   * 
+   * A slot is considered consecutive if:
+   * - It starts exactly when the previous slot ends
+   * - No gap between slots
+   * 
+   * Supports overnight and multi-day spans (up to 48h).
+   * 
+   * @param slots - Array of free time slots (must be sorted by start time)
+   * @returns Merged array of free time slots
+   */
+  const mergeConsecutiveSlots = (slots: FreeTimeSlot[]): FreeTimeSlot[] => {
+    if (slots.length === 0) return [];
+    
+    // Sort slots by start time first
+    const sorted = [...slots].sort((a, b) => {
+      const aDate = new Date(a.date);
+      const bDate = new Date(b.date);
+      
+      // Parse start times
+      const aTime = a.startTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      const bTime = b.startTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      
+      if (!aTime || !bTime) return 0;
+      
+      let aHours = parseInt(aTime[1]);
+      let bHours = parseInt(bTime[1]);
+      const aMinutes = parseInt(aTime[2]);
+      const bMinutes = parseInt(bTime[2]);
+      const aPeriod = aTime[3].toUpperCase();
+      const bPeriod = bTime[3].toUpperCase();
+      
+      // Convert to 24-hour format
+      if (aPeriod === 'PM' && aHours !== 12) aHours += 12;
+      if (aPeriod === 'AM' && aHours === 12) aHours = 0;
+      if (bPeriod === 'PM' && bHours !== 12) bHours += 12;
+      if (bPeriod === 'AM' && bHours === 12) bHours = 0;
+      
+      aDate.setHours(aHours, aMinutes);
+      bDate.setHours(bHours, bMinutes);
+      
+      return aDate.getTime() - bDate.getTime();
+    });
+    
+    const merged: FreeTimeSlot[] = [];
+    let current = { ...sorted[0] };
+    
+    for (let i = 1; i < sorted.length; i++) {
+      const next = sorted[i];
+      
+      // Check if slots are consecutive (next starts when current ends)
+      // and on the same or adjacent days
+      const currentDateEnd = new Date(current.date);
+      const nextDateStart = new Date(next.date);
+      
+      // Parse end time of current slot
+      const currentEndTime = current.endTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      const nextStartTime = next.startTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      
+      if (!currentEndTime || !nextStartTime) {
+        merged.push(current);
+        current = { ...next };
+        continue;
+      }
+      
+      let currentEndHours = parseInt(currentEndTime[1]);
+      let nextStartHours = parseInt(nextStartTime[1]);
+      const currentEndMinutes = parseInt(currentEndTime[2]);
+      const nextStartMinutes = parseInt(nextStartTime[2]);
+      const currentEndPeriod = currentEndTime[3].toUpperCase();
+      const nextStartPeriod = nextStartTime[3].toUpperCase();
+      
+      // Convert to 24-hour format
+      if (currentEndPeriod === 'PM' && currentEndHours !== 12) currentEndHours += 12;
+      if (currentEndPeriod === 'AM' && currentEndHours === 12) currentEndHours = 0;
+      if (nextStartPeriod === 'PM' && nextStartHours !== 12) nextStartHours += 12;
+      if (nextStartPeriod === 'AM' && nextStartHours === 12) nextStartHours = 0;
+      
+      currentDateEnd.setHours(currentEndHours, currentEndMinutes);
+      nextDateStart.setHours(nextStartHours, nextStartMinutes);
+      
+      // Check if slots are consecutive (within 1 day and times match)
+      const timeDiff = nextDateStart.getTime() - currentDateEnd.getTime();
+      const isConsecutive = timeDiff === 0;
+      
+      if (isConsecutive) {
+        // Merge: extend current slot's end time
+        current.endTime = next.endTime;
+        current.duration += next.duration;
+      } else {
+        // Not consecutive: save current and start new block
+        merged.push(current);
+        current = { ...next };
+      }
+    }
+    
+    // Don't forget the last slot
+    merged.push(current);
+    
+    return merged;
+  };
+
+  /**
+   * Formats duration in minutes to human-readable format.
+   * 
+   * Examples:
+   * - 30 → "30min"
+   * - 90 → "1h 30min"
+   * - 120 → "2h"
+   * - 1500 → "1d 1h" (25 hours)
+   * 
+   * @param minutes - Duration in minutes
+   * @returns Formatted duration string
+   */
+  const formatDuration = (minutes: number): string => {
+    const days = Math.floor(minutes / 1440);  // 1440 min = 24h
+    const hours = Math.floor((minutes % 1440) / 60);
+    const mins = minutes % 60;
+    
+    const parts: string[] = [];
+    
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (mins > 0) parts.push(`${mins}min`);
+    
+    return parts.join(' ') || '0min';
+  };
+
   // Generate free time slots with proper algorithm
   const generateFreeTimeSlots = (): FreeTimeSlot[] => {
     const slots: FreeTimeSlot[] = [];
@@ -266,9 +403,10 @@ export function FreeTimeFinder() {
   };
 
   const freeTimeSlots = generateFreeTimeSlots();
+  const consolidatedFreeTimeSlots = mergeConsecutiveSlots(freeTimeSlots);
 
   // Group slots by date for list view
-  const groupedSlots = freeTimeSlots.reduce((acc, slot) => {
+  const groupedSlots = consolidatedFreeTimeSlots.reduce((acc, slot) => {
     const dateKey = slot.date.toISOString().split('T')[0];
     if (!acc[dateKey]) {
       acc[dateKey] = [];
@@ -493,7 +631,7 @@ export function FreeTimeFinder() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold">Available Time</h2>
             <span className="text-xs text-muted-foreground">
-              {freeTimeSlots.length} slots found
+              {consolidatedFreeTimeSlots.length} slots found
             </span>
           </div>
 
@@ -553,7 +691,7 @@ export function FreeTimeFinder() {
             </div>
           ) : (
             <div className="space-y-4">
-              {freeTimeSlots.length === 0 ? (
+              {consolidatedFreeTimeSlots.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4">
                   <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3">
                     <span className="text-3xl">🗓️</span>
@@ -612,7 +750,7 @@ export function FreeTimeFinder() {
                                     {slot.startTime} - {slot.endTime}
                                   </span>
                                   <span className="text-xs text-muted-foreground">
-                                    ({slot.duration} min)
+                                    ({formatDuration(slot.duration)})
                                   </span>
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-0.5">
