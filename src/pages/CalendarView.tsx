@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithAttendees) => void }) {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -128,11 +129,47 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
       />
 
       <div className="flex-1 overflow-y-auto pb-20 px-4">
-        {/* Month navigation with color legend */}
+        {/* Month/Year navigation with dropdowns */}
         <div className="flex items-center justify-between py-4 gap-4">
-          <h2 className="text-xl font-bold whitespace-nowrap">
-            {getMonthName(month)} {year}
-          </h2>
+          <div className="flex items-center gap-2 flex-1">
+            {/* Month Selector */}
+            <Select
+              value={month.toString()}
+              onValueChange={(value) => {
+                const newMonth = parseInt(value);
+                setCurrentDate(new Date(year, newMonth, 1));
+              }}
+            >
+              <SelectTrigger className="w-[140px] bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, i) => (
+                  <SelectItem key={i} value={i.toString()}>
+                    {getMonthName(i)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Year Selector */}
+            <Select
+              value={year.toString()}
+              onValueChange={(value) => {
+                const newYear = parseInt(value);
+                setCurrentDate(new Date(newYear, month, 1));
+              }}
+            >
+              <SelectTrigger className="w-[100px] bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2025">2025</SelectItem>
+                <SelectItem value="2026">2026</SelectItem>
+                <SelectItem value="2027">2027</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           
           {/* Color legend - compact horizontal version */}
           <div className="flex items-center gap-2 flex-1 justify-center overflow-x-auto">
