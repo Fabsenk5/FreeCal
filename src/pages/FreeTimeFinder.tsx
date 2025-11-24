@@ -271,6 +271,19 @@ export function FreeTimeFinder() {
     return dateEvents.length === 0;
   };
 
+  // Check if a date has any free slots available
+  const hasFreeSlotsOnDate = (date: Date | null): boolean => {
+    if (!date) return false;
+    if (selectedUsers.length === 0) return false;
+
+    const dayOfMonth = date.getDate();
+    if (dayOfMonth < dayRange[0] || dayOfMonth > dayRange[1]) return false;
+
+    // Check if there are any free slots for this specific date
+    const dateKey = date.toISOString().split('T')[0];
+    return groupedSlots[dateKey] && groupedSlots[dateKey].length > 0;
+  };
+
   const rawFreeTimeSlots = generateFreeTimeSlots();
   const freeTimeSlots = mergeConsecutiveSlots(rawFreeTimeSlots);
 
@@ -283,6 +296,8 @@ export function FreeTimeFinder() {
     acc[dateKey].push(slot);
     return acc;
   }, {} as Record<string, FreeTimeSlot[]>);
+
+  const hasAnyFreeSlots = freeTimeSlots.length > 0;
 
   const handleCreateFromSlot = (slot: FreeTimeSlot) => {
     toast.info('Creating event from free time slot');
@@ -527,7 +542,7 @@ export function FreeTimeFinder() {
 
                   const dayOfMonth = date.getDate();
                   const isInRange = dayOfMonth >= dayRange[0] && dayOfMonth <= dayRange[1];
-                  const isFree = isDateFree(date);
+                  const hasFree = hasFreeSlotsOnDate(date);
                   const isToday =
                     date.getDate() === new Date().getDate() &&
                     date.getMonth() === new Date().getMonth();
@@ -537,9 +552,9 @@ export function FreeTimeFinder() {
                       key={date.toISOString()}
                       className={cn(
                         'aspect-square rounded-lg p-1 flex items-center justify-center transition-all relative text-sm font-medium',
-                        isFree && isInRange &&
-                          'bg-[hsl(var(--free-time)_/_0.2)] text-[hsl(var(--free-time))]',
-                        (!isFree || !isInRange) && 'text-muted-foreground',
+                        hasFree && isInRange && hasAnyFreeSlots &&
+                          'bg-yellow-200 text-yellow-800',
+                        (!hasFree || !isInRange) && 'text-muted-foreground',
                         !isInRange && 'opacity-30',
                         isToday && 'border-2 border-primary'
                       )}
@@ -553,7 +568,7 @@ export function FreeTimeFinder() {
               {/* Legend */}
               <div className="mt-4 pt-4 border-t border-border">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-[hsl(var(--free-time)_/_0.2)]" />
+                  <div className="w-4 h-4 rounded bg-yellow-200" />
                   <span className="text-xs text-muted-foreground">Available</span>
                 </div>
               </div>
