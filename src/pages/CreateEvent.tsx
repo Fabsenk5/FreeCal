@@ -48,6 +48,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
   const icsFileInputRef = useRef<HTMLInputElement>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showScreenshotDialog, setShowScreenshotDialog] = useState(false);
+  const [sharingStatus, setSharingStatus] = useState<Record<string, 'attendee' | 'viewer' | 'none'>>({});
 
   // Convert 12-hour time format to 24-hour
   const convertTo24Hour = (time12: string): string => {
@@ -263,6 +264,15 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       return;
     }
 
+    // Build attendees and viewers arrays from unified sharing status
+    const attendeesList = Object.entries(sharingStatus)
+      .filter(([_, status]) => status === 'attendee')
+      .map(([userId]) => userId);
+    
+    const viewersList = Object.entries(sharingStatus)
+      .filter(([_, status]) => status === 'viewer')
+      .map(([userId]) => userId);
+
     setSaving(true);
 
     try {
@@ -313,8 +323,8 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
           .delete()
           .eq('event_id', editingEventId);
 
-        if (attendees.length > 0) {
-          const attendeeRecords = attendees.map((attendeeId) => ({
+        if (attendeesList.length > 0) {
+          const attendeeRecords = attendeesList.map((attendeeId) => ({
             event_id: editingEventId,
             user_id: attendeeId,
           }));
@@ -328,8 +338,8 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
           .delete()
           .eq('event_id', editingEventId);
 
-        if (viewers.length > 0) {
-          const viewerRecords = viewers.map((viewerId) => ({
+        if (viewersList.length > 0) {
+          const viewerRecords = viewersList.map((viewerId) => ({
             event_id: editingEventId,
             user_id: viewerId,
           }));
@@ -361,7 +371,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
         // Add creator and attendees
         const attendeeRecords = [
           { event_id: newEvent.id, user_id: user.id },
-          ...attendees.map((attendeeId) => ({
+          ...attendeesList.map((attendeeId) => ({
             event_id: newEvent.id,
             user_id: attendeeId,
           })),
@@ -376,8 +386,8 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
         }
 
         // Add viewers
-        if (viewers.length > 0) {
-          const viewerRecords = viewers.map((viewerId) => ({
+        if (viewersList.length > 0) {
+          const viewerRecords = viewersList.map((viewerId) => ({
             event_id: newEvent.id,
             user_id: viewerId,
           }));
