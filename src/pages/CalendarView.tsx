@@ -3,7 +3,6 @@ import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { MonthView } from '@/components/calendar/MonthView';
 import { EventList } from '@/components/calendar/EventList';
-import { ViewToggle, CalendarView as ViewType } from '@/components/calendar/ViewToggle';
 import { useEvents, EventWithAttendees } from '@/hooks/useEvents';
 import { useRelationships } from '@/hooks/useRelationships';
 import { getMonthName } from '@/utils/dateUtils';
@@ -18,9 +17,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithAttendees) => void }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
-  const [view, setView] = useState<ViewType>('month');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  
+
   const { events, loading, refreshEvents } = useEvents();
   const { relationships, loading: relLoading } = useRelationships();
   const { profile } = useAuth();
@@ -45,21 +43,21 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
   // FIXED: Multi-day event filtering
   const getEventsForDate = (date: Date | null) => {
     if (!date) return [];
-    
+
     return events.filter((event) => {
       const startDate = new Date(event.start_time);
       const endDate = new Date(event.end_time);
-      
+
       // Set time to midnight for accurate date-only comparison
       const checkDate = new Date(date);
       checkDate.setHours(0, 0, 0, 0);
-      
+
       const eventStart = new Date(startDate);
       eventStart.setHours(0, 0, 0, 0);
-      
+
       const eventEnd = new Date(endDate);
       eventEnd.setHours(0, 0, 0, 0);
-      
+
       // Event is on this date if the date falls between start and end (inclusive)
       return checkDate >= eventStart && checkDate <= eventEnd;
     });
@@ -70,15 +68,15 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
   // FIXED: Edit event handler with proper state passing
   const handleEditEvent = () => {
     if (!selectedEvent) return;
-    
+
     console.log('CalendarView: Edit button clicked, event:', selectedEvent);
-    
+
     if (onEditEvent) {
       onEditEvent(selectedEvent);
     } else {
       console.error('onEditEvent callback is not defined!');
     }
-    
+
     // Close dialog
     setSelectedEventId(null);
   };
@@ -198,7 +196,7 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
               </SelectContent>
             </Select>
           </div>
-          
+
           <div className="flex gap-1 shrink-0">
             <button
               onClick={handlePrevMonth}
