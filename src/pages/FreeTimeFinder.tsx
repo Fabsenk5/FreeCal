@@ -216,65 +216,23 @@ export function FreeTimeFinder() {
     const dayOfMonth = date.getDate();
     if (dayOfMonth < dayRange[0] || dayOfMonth > dayRange[1]) return false;
 
-    // Create start and end of day for comparison
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date);
-    dayEnd.setHours(23, 59, 59, 999);
-
-    // Check if any selected user has events that overlap with this date
-    const hasOverlappingEvents = events.some((event) => {
-      const eventStart = new Date(event.start_time);
-      const eventEnd = new Date(event.end_time);
+    // Check if any selected user has events on this date
+    const dateEvents = events.filter((event) => {
+      const eventDate = new Date(event.start_time);
+      const isSameDate =
+        eventDate.getDate() === date.getDate() &&
+        eventDate.getMonth() === date.getMonth() &&
+        eventDate.getFullYear() === date.getFullYear();
 
       // Check if event creator or any attendee is in selected users
       const isUserInvolved =
         selectedUsers.includes(event.user_id) ||
         event.attendees?.some((attendeeId) => selectedUsers.includes(attendeeId));
 
-      if (!isUserInvolved) return false;
-
-      // Check if event overlaps with this day
-      const overlaps = eventStart < dayEnd && eventEnd > dayStart;
-      
-      // Debug logging
-      if (date.getDate() === 26 && overlaps) {
-        console.log('Nov 26 conflict found:', {
-          eventTitle: event.title,
-          eventUserId: event.user_id,
-          selectedUsers: selectedUsers,
-          isUserInvolved,
-          eventStart,
-          eventEnd
-        });
-      }
-      
-      return overlaps;
+      return isSameDate && isUserInvolved;
     });
 
-    return !hasOverlappingEvents;
-  };
-
-  const hasAnyFreeTime = (date: Date | null): boolean => {
-    if (!date) return false;
-    if (selectedUsers.length === 0) return false;
-
-    // Check if within day range
-    const dayOfMonth = date.getDate();
-    if (dayOfMonth < dayRange[0] || dayOfMonth > dayRange[1]) return false;
-
-    // Check if there are any free slots for this date by testing hourly slots
-    const startTime = getTimeFromMinutes(timeFrame.startMinutes);
-    const endTime = getTimeFromMinutes(timeFrame.endMinutes);
-    
-    // Test each hour within the time frame
-    for (let hour = 0; hour < 24; hour++) {
-      if (isTimeSlotFree(date, hour, hour + 1)) {
-        return true;
-      }
-    }
-    
-    return false;
+    return dateEvents.length === 0;
   };
 
   const freeTimeSlots = generateFreeTimeSlots();
@@ -442,20 +400,26 @@ export function FreeTimeFinder() {
           {/* User selection */}
           <div className="space-y-2">
             <Label>Check availability for</Label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-2">
               {/* Current user */}
               {profile && user && (
                 <button
+                  type="button"
                   onClick={() => toggleUser(user.id)}
-                  className={cn(
-                    "flex items-center justify-center gap-2 p-3 rounded-lg border transition-all text-sm font-medium",
-                    selectedUsers.includes(user.id)
-                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                      : "bg-card text-foreground border-border hover:bg-accent"
-                  )}
+                  className="w-full flex items-center gap-3 p-3 bg-card rounded-lg hover:bg-accent transition-colors"
                 >
-                  <span className="truncate">{profile.display_name.split(' ')[0]}</span>
-                  <span className="text-xs opacity-70">(You)</span>
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: profile.calendar_color }}
+                  />
+                  <span className="flex-1 text-left text-sm">
+                    {profile.display_name} (You)
+                  </span>
+                  {selectedUsers.includes(user.id) && (
+                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
+                      ✓
+                    </div>
+                  )}
                 </button>
               )}
 
@@ -463,17 +427,30 @@ export function FreeTimeFinder() {
               {relationships.map((rel) => (
                 <button
                   key={rel.id}
+                  type="button"
                   onClick={() => toggleUser(rel.profile.id)}
-                  className={cn(
-                    "flex items-center justify-center p-3 rounded-lg border transition-all text-sm font-medium truncate",
-                    selectedUsers.includes(rel.profile.id)
-                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                      : "bg-card text-foreground border-border hover:bg-accent"
-                  )}
+                  className="w-full flex items-center gap-3 p-3 bg-card rounded-lg hover:bg-accent transition-colors"
                 >
-                  {rel.profile.display_name.split(' ')[0]}
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: rel.profile.calendar_color }}
+                  />
+                  <span className="flex-1 text-left text-sm">
+                    {rel.profile.display_name}
+                  </span>
+                  {selectedUsers.includes(rel.profile.id) && (
+                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
+                      ✓
+                    </div>
+                  )}
                 </button>
               ))}
+
+              {relationships.length === 0 && !profile && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No relationships yet. Add connections in your profile.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -510,8 +487,7 @@ export function FreeTimeFinder() {
 
                   const dayOfMonth = date.getDate();
                   const isInRange = dayOfMonth >= dayRange[0] && dayOfMonth <= dayRange[1];
-                  const isFullyFree = isDateFree(date);
-                  const isPartiallyFree = !isFullyFree && hasAnyFreeTime(date);
+                  const isFree = isDateFree(date);
                   const isToday =
                     date.getDate() === new Date().getDate() &&
                     date.getMonth() === new Date().getMonth();
@@ -521,11 +497,11 @@ export function FreeTimeFinder() {
                       key={date.toISOString()}
                       className={cn(
                         'aspect-square rounded-lg p-1 flex items-center justify-center transition-all relative text-sm font-medium',
-                        isFullyFree && isInRange && 'bg-green-600/20 hover:bg-green-600/30 text-green-600',
-                        isPartiallyFree && isInRange && 'bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-600',
-                        !isFullyFree && !isPartiallyFree && 'text-muted-foreground bg-card hover:bg-muted',
+                        isFree && isInRange &&
+                          'bg-[hsl(var(--free-time)_/_0.2)] text-[hsl(var(--free-time))]',
+                        (!isFree || !isInRange) && 'text-muted-foreground',
                         !isInRange && 'opacity-30',
-                        isToday && 'ring-2 ring-primary'
+                        isToday && 'border-2 border-primary'
                       )}
                     >
                       {date.getDate()}
@@ -536,24 +512,9 @@ export function FreeTimeFinder() {
 
               {/* Legend */}
               <div className="mt-4 pt-4 border-t border-border">
-                <div className="flex items-center space-x-6">
-                  {/* Fully Available - Green */}
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 rounded bg-green-600/20 border border-green-600/40"></div>
-                    <span className="text-xs text-muted-foreground">Fully Available</span>
-                  </div>
-                  
-                  {/* Partially Available - Yellow */}
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 rounded bg-yellow-600/20 border border-yellow-600/40"></div>
-                    <span className="text-xs text-muted-foreground">Partially Available</span>
-                  </div>
-                  
-                  {/* Not Available - Dark/Grey */}
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 rounded bg-card border border-border"></div>
-                    <span className="text-xs text-muted-foreground">Not Available</span>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-[hsl(var(--free-time)_/_0.2)]" />
+                  <span className="text-xs text-muted-foreground">Available</span>
                 </div>
               </div>
             </div>
