@@ -81,6 +81,14 @@ export function Signup() {
         {/* Signup Form */}
         <div className="bg-card rounded-2xl p-8 shadow-card">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Error Message */}
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="displayName">Full Name</Label>
               <Input
