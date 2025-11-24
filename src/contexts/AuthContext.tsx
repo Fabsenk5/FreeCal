@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, Profile } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { WelcomeDialog } from '@/components/WelcomeDialog';
+import { notifyAdminNewUser } from '@/lib/notifications';
 
 interface AuthContextType {
   user: User | null;
@@ -21,6 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
     // Get initial session
@@ -51,6 +54,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    // Show welcome dialog for new users
+    if (user && profile && !loading) {
+      const hasSeenWelcome = localStorage.getItem('welcomeShown');
+      if (!hasSeenWelcome) {
+        setShowWelcome(true);
+      }
+    }
+  }, [user, profile, loading]);
+
   const fetchProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -76,22 +89,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: {
-            display_name: displayName,
-          },
-        },
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
+      if (!data.user) throw new Error('No user returned');
 
-      if (data.user) {
-        toast.success('Account created successfully!', {
-          description: 'You can now sign in.',
-        });
-      }
+      const newProfile: any = {
+        id: data.user.id,
+        email,
+        display_name: displayName,
+        calendar_color: getRandomColor(),
+        is_approved: false,
+        approval_status: 'pending',
+      };
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert(newProfile);
+
+      if (profileError) throw profileError;
+
+      // Notify admin of new user
+      await notifyAdminNewUser(email, displayName);
+
+      toast.success('Account created successfully!', {
+        description: 'Your account is pending approval. You\'ll receive an email when approved.',
+      });
     } catch (err) {
       console.error('Signup error:', err);
       throw err;
@@ -168,7 +191,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     updateProfile,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <WelcomeDialog open={showWelcome} onClose={() => setShowWelcome(false)} />
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

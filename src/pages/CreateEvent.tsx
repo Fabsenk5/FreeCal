@@ -93,7 +93,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       setIsTentative(eventToEdit.is_tentative || false);
       
       toast.info('Editing event', {
-        description: 'Update the details and save.',
+        description: 'Update the details below and save your changes.',
       });
     }
   }, [eventToEdit, profile?.calendar_color]);
@@ -187,7 +187,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       }
 
       toast.success('Event imported successfully!', {
-        description: `Imported: ${parsed.title}`,
+        description: `Imported: ${parsed.title}. Review and adjust details before saving.`,
       });
     } catch (error) {
       console.error('Error importing calendar:', error);

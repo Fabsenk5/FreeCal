@@ -1,11 +1,11 @@
 {
-  "name": "Altan",
-  "short_name": "Altan",
-  "description": "Altan Application",
+  "name": "FreeCal - Calendar to find shared freedom",
+  "short_name": "FreeCal",
+  "description": "Shared family calendar with OCR import - find time together",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
-  "theme_color": "#000000",
+  "theme_color": "#3b82f6",
   "icons": [
     {
       "src": "/favicon/android/android-launchericon-192-192.png",
@@ -20,4 +20,4 @@
       "purpose": "any maskable"
     }
   ]
-} 
+}

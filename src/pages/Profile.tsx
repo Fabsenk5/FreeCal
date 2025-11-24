@@ -123,7 +123,7 @@ export function Profile() {
       }
 
       toast.success('Request sent!', {
-        description: `A relationship request has been sent to ${profiles.display_name}.`,
+        description: 'You'll see their calendar once they accept your request.',
       });
 
       setSearchEmail('');

@@ -103,7 +103,7 @@ export function useRelationshipRequests() {
       }
 
       toast.success('Request accepted!', {
-        description: 'You can now see their calendar events.',
+        description: 'You can now see each other\'s calendars and find free time together!',
       });
 
       await fetchPendingRequests();
