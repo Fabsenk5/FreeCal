@@ -1,4 +1,34 @@
 /**
+ * Free Time Finder Page
+ * 
+ * This component allows users to find common free time slots across multiple calendars.
+ * 
+ * How it works:
+ * 1. User selects people to check availability for
+ * 2. User selects a time frame (can span up to 48 hours, e.g., 9 PM Day 1 to 2 AM Day 2)
+ * 3. User selects a day range within the month
+ * 4. Algorithm generates 30-minute slots within the time frame
+ * 5. For each slot, check if all selected users are free
+ * 6. Only event_attendees block time, not event_viewers
+ * 7. Display results in calendar view or list view
+ * 
+ * Key Features:
+ * - Calendar view: Shows days with availability highlighted
+ * - List view: Shows specific time slots with "Create" buttons
+ * - Time frame slider: Select any time range across 2 days
+ * - Day range slider: Filter specific dates within the month
+ * - Overnight support: Handle time frames that span midnight
+ * 
+ * Algorithm Notes:
+ * - Uses dual-slider for 48-hour time frame selection (0-2879 minutes)
+ * - Checks overlapping events for conflict detection
+ * - Only counts attendees (not viewers) as blocking time
+ * - Generates slots in 30-minute increments for performance
+ * 
+ * @module pages/FreeTimeFinder
+ */
+
+/**
  * BACKUP - Working version before UI improvements
  * Date: 2025-11-24
  * To restore: Copy this file back to FreeTimeFinder.tsx

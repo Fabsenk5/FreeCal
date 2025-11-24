@@ -1,3 +1,22 @@
+/**
+ * Authentication Context & Provider
+ *
+ * This file manages the global authentication state for the application.
+ * It provides:
+ * - User authentication state (logged in/out)
+ * - User profile data from database
+ * - Sign up, sign in, and sign out methods
+ * - Profile update functionality
+ * - Automatic session management
+ *
+ * Usage:
+ * ```typescript
+ * const { user, profile, signIn, signOut } = useAuth()
+ * ```
+ *
+ * @module AuthContext
+ */
+
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, Profile } from '@/lib/supabase';
@@ -5,7 +24,12 @@ import { toast } from 'sonner';
 import { WelcomeDialog } from '@/components/WelcomeDialog';
 import { notifyAdminNewUser } from '@/lib/notifications';
 
-// Generate random color for calendar
+/**
+ * Generate random color for user's calendar
+ * Used during sign up to assign a unique color to each user
+ *
+ * @returns {string} Hex color code
+ */
 const getRandomColor = () => {
   const colors = [
     '#8B5CF6', // Purple
@@ -20,6 +44,18 @@ const getRandomColor = () => {
   return colors[Math.floor(Math.random() * colors.length)];
 };
 
+/**
+ * Defines the shape of the authentication context.
+ *
+ * @property {User | null} user - The currently authenticated Supabase user.
+ * @property {Profile | null} profile - The user's profile data from the database.
+ * @property {Session | null} session - The current Supabase session.
+ * @property {boolean} loading - Indicates if authentication data is still loading.
+ * @property {(email: string, password: string, displayName: string) => Promise<void>} signUp - Registers a new user.
+ * @property {(email: string, password: string) => Promise<void>} signIn - Logs in an existing user.
+ * @property {() => Promise<void>} signOut - Logs out the current user.
+ * @property {(updates: Partial<Profile>) => Promise<void>} updateProfile - Updates the user's profile.
+ */
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
@@ -31,8 +67,19 @@ interface AuthContextType {
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
 }
 
+/**
+ * React context for authentication state and actions.
+ *
+ * @type {React.Context<AuthContextType | undefined>}
+ */
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Provides authentication state and actions to the component tree.
+ *
+ * @param {React.ReactNode} children - Child components that can consume the auth context.
+ * @returns {JSX.Element} The provider component wrapping children.
+ */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -82,6 +129,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, profile, loading]);
 
+  /**
+   * Fetches the user's profile from the database.
+   *
+   * @param {string} userId - The ID of the user whose profile to fetch.
+   */
   const fetchProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -102,6 +154,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  /**
+   * Registers a new user and creates a profile entry.
+   *
+   * @param {string} email - User's email address.
+   * @param {string} password - User's chosen password.
+   * @param {string} displayName - User's display name.
+   */
   const signUp = async (email: string, password: string, displayName: string) => {
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -140,6 +199,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  /**
+   * Logs in an existing user.
+   *
+   * @param {string} email - User's email address.
+   * @param {string} password - User's password.
+   */
   const signIn = async (email: string, password: string) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -162,6 +227,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  /**
+   * Logs out the current user.
+   */
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
@@ -177,6 +245,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  /**
+   * Updates the current user's profile.
+   *
+   * @param {Partial<Profile>} updates - Fields to update in the profile.
+   */
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!user) return;
 
@@ -218,6 +291,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Hook to access authentication context.
+ *
+ * @returns {AuthContextType} The authentication context value.
+ * @throws Will throw an error if used outside of AuthProvider.
+ */
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

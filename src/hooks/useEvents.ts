@@ -1,15 +1,59 @@
+/**
+ * useEvents Hook
+ * 
+ * Custom hook for fetching and managing calendar events.
+ * 
+ * This hook fetches all events visible to the current user, including:
+ * - Events created by the user (user is owner)
+ * - Events where user is an attendee (blocks calendar)
+ * - Events where user is a viewer (visibility only, doesn't block calendar)
+ * 
+ * The hook automatically fetches events when the user changes and provides
+ * a refresh function to manually refetch events after mutations.
+ * 
+ * @example
+ * ```typescript
+ * const { events, loading, refreshEvents } = useEvents()
+ * 
+ * // Use events in your component
+ * events.map(event => <EventCard event={event} />)
+ * 
+ * // Refresh after creating/updating an event
+ * await createEvent(...)
+ * refreshEvents()
+ * ```
+ * 
+ * @module hooks/useEvents
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, Event } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
+/**
+ * Extended event type with additional metadata
+ * Includes attendee/viewer lists and creator information
+ */
 export interface EventWithAttendees extends Event {
+  /** Array of user IDs who are attendees (blocks their calendar) */
   attendees?: string[];
+  /** Array of user IDs who are viewers (can see event, doesn't block calendar) */
   viewers?: string[];
+  /** Display name of the event creator */
   creator_name?: string;
+  /** Calendar color of the event creator */
   creator_color?: string;
 }
 
+/**
+ * Hook for fetching and managing calendar events
+ * 
+ * @returns {Object} Events data and utilities
+ * @returns {EventWithAttendees[]} events - Array of events visible to current user
+ * @returns {boolean} loading - Loading state during initial fetch
+ * @returns {Function} refreshEvents - Function to manually refetch events
+ */
 export function useEvents() {
   const [events, setEvents] = useState<EventWithAttendees[]>([]);
   const [loading, setLoading] = useState(true);
