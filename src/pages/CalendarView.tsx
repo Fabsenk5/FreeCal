@@ -226,6 +226,7 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
             isAllDay: e.is_all_day,
             userId: e.user_id,
             attendeeIds: e.attendees || [],
+            viewerIds: e.viewers || [],
             color: e.creator_color || 'hsl(217, 91%, 60%)',
             creatorName: e.creator_name,
           }))}
@@ -247,6 +248,7 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
                 isAllDay: e.is_all_day,
                 userId: e.user_id,
                 attendeeIds: e.attendees || [],
+                viewerIds: e.viewers || [],
                 color: e.creator_color || 'hsl(217, 91%, 60%)',
                 creatorName: e.creator_name,
               }))}
@@ -274,6 +276,7 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
                   isAllDay: selectedEvent.is_all_day,
                   userId: selectedEvent.user_id,
                   attendeeIds: selectedEvent.attendees || [],
+                  viewerIds: selectedEvent.viewers || [],
                   color: selectedEvent.creator_color || 'hsl(217, 91%, 60%)',
                   creatorName: selectedEvent.creator_name,
                 }}

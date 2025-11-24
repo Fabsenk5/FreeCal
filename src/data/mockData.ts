@@ -15,6 +15,7 @@ export interface CalendarEvent {
   isAllDay: boolean;
   userId: string;
   attendeeIds: string[];
+  viewerIds?: string[]; // Added for viewers feature
   recurrence?: {
     frequency: 'daily' | 'weekly' | 'monthly' | 'custom';
     interval?: number;

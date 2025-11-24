@@ -1,7 +1,7 @@
 import { CalendarEvent, getUserById, getUsersByIds } from '@/data/mockData';
 import { formatTime, formatDate } from '@/utils/dateUtils';
 import { cn } from '@/lib/utils';
-import { Clock, Users, Repeat, Calendar } from 'lucide-react';
+import { Clock, Users, Repeat, Calendar, Eye } from 'lucide-react';
 
 interface EventCardProps {
   event: CalendarEvent;
@@ -11,6 +11,7 @@ interface EventCardProps {
 export function EventCard({ event, onClick }: EventCardProps) {
   const creator = getUserById(event.userId);
   const attendees = getUsersByIds(event.attendeeIds);
+  const viewers = getUsersByIds(event.viewerIds || []);
 
   // Check if event spans multiple days
   const startDate = new Date(event.startDate);
@@ -85,10 +86,19 @@ export function EventCard({ event, onClick }: EventCardProps) {
           </div>
         </div>
 
+        {/* Attendees - Blue badges */}
         {attendees.length > 1 && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Users className="w-3.5 h-3.5" />
-            <span>{attendees.length} attendees</span>
+          <div className="flex items-center gap-1.5 text-xs">
+            <Users className="w-3.5 h-3.5 text-blue-400" />
+            <span className="text-blue-400">{attendees.length} attendees</span>
+          </div>
+        )}
+
+        {/* Viewers - Grey badges */}
+        {viewers.length > 0 && (
+          <div className="flex items-center gap-1.5 text-xs">
+            <Eye className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">{viewers.length} viewers</span>
           </div>
         )}
 
