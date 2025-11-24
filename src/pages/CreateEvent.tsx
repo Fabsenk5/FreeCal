@@ -30,6 +30,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
   const [eventColor, setEventColor] = useState<string>(profile?.calendar_color || 'hsl(217, 91%, 60%)');
   const [notes, setNotes] = useState<string>('');
   const [attendees, setAttendees] = useState<string[]>([]);
+  const [viewers, setViewers] = useState<string[]>([]);
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -86,6 +87,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       setRecurrenceDays(eventToEdit.recurrence_days || []);
       setRecurrenceInterval(eventToEdit.recurrence_interval || 1);
       setAttendees(eventToEdit.attendees || []);
+      setViewers(eventToEdit.viewers || []);
       setEventColor(eventToEdit.color || eventToEdit.creator_color || profile?.calendar_color || 'hsl(217, 91%, 60%)');
       setNotes(eventToEdit.description || '');
       setLocation(eventToEdit.location || '');
@@ -137,7 +139,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       
       if (!parsed) {
         toast.error('Could not parse calendar file', {
-          description: 'Please make sure the file is a valid ICS file.',
+          description: 'Please make sure the file is a valid ICSS file.',
         });
         return;
       }
@@ -320,6 +322,21 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
           await supabase.from('event_attendees').insert(attendeeRecords);
         }
 
+        // Update viewers
+        await supabase
+          .from('event_viewers')
+          .delete()
+          .eq('event_id', editingEventId);
+
+        if (viewers.length > 0) {
+          const viewerRecords = viewers.map((viewerId) => ({
+            event_id: editingEventId,
+            user_id: viewerId,
+          }));
+
+          await supabase.from('event_viewers').insert(viewerRecords);
+        }
+
         toast.success('Event updated successfully!');
         resetForm();
         if (onEventSaved) {
@@ -358,6 +375,22 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
           console.error('Error adding attendees:', attendeeError);
         }
 
+        // Add viewers
+        if (viewers.length > 0) {
+          const viewerRecords = viewers.map((viewerId) => ({
+            event_id: newEvent.id,
+            user_id: viewerId,
+          }));
+
+          const { error: viewerError } = await supabase
+            .from('event_viewers')
+            .insert(viewerRecords);
+
+          if (viewerError) {
+            console.error('Error adding viewers:', viewerError);
+          }
+        }
+
         toast.success('Event created successfully!');
         resetForm();
         if (onEventSaved) {
@@ -388,6 +421,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
     setRecurrenceDays([]);
     setRecurrenceInterval(1);
     setAttendees([]);
+    setViewers([]);
     setEventColor(profile?.calendar_color || 'hsl(217, 91%, 60%)');
     setLocation('');
     setEventUrl('');
@@ -396,6 +430,12 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
 
   const toggleAttendee = (userId: string) => {
     setAttendees((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const toggleViewer = (userId: string) => {
+    setViewers((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
   };
@@ -629,6 +669,9 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
           {/* Attendees */}
           <div className="space-y-2">
             <Label>Attendees</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Attendees will block their calendar time
+            </p>
             <div className="space-y-2">
               {relationships.map((rel) => (
                 <button
@@ -646,6 +689,42 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
                   </span>
                   {attendees.includes(rel.profile.id) && (
                     <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
+                      ✓
+                    </div>
+                  )}
+                </button>
+              ))}
+              {relationships.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No relationships yet. Add connections in your profile.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Viewers */}
+          <div className="space-y-2">
+            <Label>Visible to</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Viewers can see the event but won't block their calendar
+            </p>
+            <div className="space-y-2">
+              {relationships.map((rel) => (
+                <button
+                  key={rel.id}
+                  type="button"
+                  onClick={() => toggleViewer(rel.profile.id)}
+                  className="w-full flex items-center gap-3 p-3 bg-card rounded-lg hover:bg-accent transition-colors"
+                >
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: rel.profile.calendar_color }}
+                  />
+                  <span className="flex-1 text-left text-sm">
+                    {rel.profile.display_name}
+                  </span>
+                  {viewers.includes(rel.profile.id) && (
+                    <div className="w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs">
                       ✓
                     </div>
                   )}

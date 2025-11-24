@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 export interface EventWithAttendees extends Event {
   attendees?: string[];
+  viewers?: string[];
   creator_name?: string;
   creator_color?: string;
 }
@@ -48,12 +49,27 @@ export function useEvents() {
 
       const attendeeEventIds = attendeeEvents?.map((a) => a.event_id) || [];
 
+      // Fetch events where user is a viewer
+      const { data: viewerEvents, error: viewerError } = await supabase
+        .from('event_viewers')
+        .select('event_id')
+        .eq('user_id', user.id);
+
+      if (viewerError) {
+        console.error('Error fetching viewer events:', viewerError);
+      }
+
+      const viewerEventIds = viewerEvents?.map((v) => v.event_id) || [];
+
+      // Combine all event IDs and remove duplicates
+      const allEventIds = [...new Set([...attendeeEventIds, ...viewerEventIds])];
+
       let otherEvents: Event[] = [];
-      if (attendeeEventIds.length > 0) {
+      if (allEventIds.length > 0) {
         const { data, error } = await supabase
           .from('events')
           .select('*')
-          .in('id', attendeeEventIds)
+          .in('id', allEventIds)
           .neq('user_id', user.id);
 
         if (error) {
@@ -78,11 +94,16 @@ export function useEvents() {
 
       const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
 
-      // Fetch attendees for each event
+      // Fetch attendees and viewers for each event
       const eventsWithDetails: EventWithAttendees[] = await Promise.all(
         allEvents.map(async (event) => {
           const { data: attendees } = await supabase
             .from('event_attendees')
+            .select('user_id')
+            .eq('event_id', event.id);
+
+          const { data: viewers } = await supabase
+            .from('event_viewers')
             .select('user_id')
             .eq('event_id', event.id);
 
@@ -91,6 +112,7 @@ export function useEvents() {
           return {
             ...event,
             attendees: attendees?.map((a) => a.user_id) || [],
+            viewers: viewers?.map((v) => v.user_id) || [],
             creator_name: creator?.display_name,
             creator_color: creator?.calendar_color || 'hsl(217, 91%, 60%)',
           };
