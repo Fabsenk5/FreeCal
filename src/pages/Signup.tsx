@@ -45,16 +45,20 @@ export function Signup() {
     } catch (err) {
       // Show user-friendly error messages
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      const errorCode = (err as any)?.code;
       
-      if (errorMessage.includes('User already registered')) {
-        setError('An account with this email already exists. Please sign in instead.');
+      if (errorMessage.includes('User already registered') || errorCode === '23505') {
+        setError('An account with this email already exists. Please use a different email or sign in.');
       } else if (errorMessage.includes('Invalid email')) {
         setError('Please enter a valid email address.');
       } else if (errorMessage.includes('Password should be at least 6 characters')) {
         setError('Password must be at least 6 characters long.');
       } else if (errorMessage.includes('Unable to validate email')) {
         setError('Invalid email format. Please check your email address.');
+      } else if (errorMessage.includes('row-level security') || errorCode === '42501') {
+        setError('Account creation failed due to security policy. Please contact support.');
       } else {
+        // Show the actual error message for debugging
         setError(errorMessage || 'Failed to create account. Please try again.');
       }
       
