@@ -39,3 +39,6 @@ bun.lockb
 pnpm-lock.yaml
 .threads
 .threads/
+
+# Build artifacts and worktree directories (managed by preview API)
+.last_install_check
