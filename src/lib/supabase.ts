@@ -245,6 +245,31 @@ export interface Database {
           created_at?: string;
         };
       };
+      /**
+       * Event viewers table
+       * Links users to events they can view but are not attending
+       * RLS enabled - users can read viewers for events they own
+       */
+      event_viewers: {
+        Row: {
+          id: string;
+          event_id: string;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          event_id?: string;
+          user_id?: string;
+          created_at?: string;
+        };
+      };
     };
   };
 }
@@ -253,3 +278,4 @@ export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type Relationship = Database['public']['Tables']['relationships']['Row'];
 export type Event = Database['public']['Tables']['events']['Row'];
 export type EventAttendee = Database['public']['Tables']['event_attendees']['Row'];
+export type EventViewer = Database['public']['Tables']['event_viewers']['Row'];
