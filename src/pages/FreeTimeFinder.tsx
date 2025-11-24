@@ -365,7 +365,8 @@ export function FreeTimeFinder() {
       }
     });
 
-    return slots.slice(0, 50); // Limit to 50 slots for performance
+    // Return all slots without limiting - merging will consolidate them
+    return slots;
   };
 
   const formatTime = (time24: string): string => {
