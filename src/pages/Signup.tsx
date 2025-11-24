@@ -55,13 +55,18 @@ export function Signup() {
         email_to_check: emailToCheck 
       });
 
+      console.log('Email check result:', { emailToCheck, data, error });
+
       if (error) {
         console.error('Email check error:', error);
         setEmailStatus(null);
         return;
       }
 
-      setEmailStatus(data ? 'taken' : 'available');
+      // data is BOOLEAN: true = taken, false = available
+      const status = data === true ? 'taken' : 'available';
+      console.log('Setting email status to:', status);
+      setEmailStatus(status);
     } catch (error) {
       console.error('Email check error:', error);
       setEmailStatus(null);
