@@ -130,11 +130,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Notify admin of new user
       await notifyAdminNewUser(email, displayName);
 
-      // Sign out immediately to prevent auto-login
-      await supabase.auth.signOut();
-
+      // User stays logged in - app will show approval pending screen
       toast.success('Account created successfully!', {
-        description: 'Your account is pending approval. You\'ll receive an email when approved.',
+        description: 'Your account is pending approval.',
       });
     } catch (err) {
       console.error('Signup error:', err);
