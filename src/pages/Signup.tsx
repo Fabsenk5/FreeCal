@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,7 @@ export function Signup() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
   
   // Email validation states
   const [emailStatus, setEmailStatus] = useState<'checking' | 'available' | 'taken' | null>(null);
@@ -133,7 +134,10 @@ export function Signup() {
         description: 'Your account is pending approval. You\'ll receive access once approved.',
       });
 
-      // The ProtectedRoute will automatically redirect to /pending-approval
+      // Redirect to home - ProtectedRoute will auto-redirect to /pending-approval
+      setTimeout(() => {
+        navigate('/', { replace: true });
+      }, 500); // Small delay to show the toast
       
     } catch (err: any) {
       console.error('Signup error:', err);
