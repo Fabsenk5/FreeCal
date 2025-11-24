@@ -21,15 +21,6 @@ function debounce<T extends (...args: any[]) => any>(
   };
 }
 
-// Generate random color for calendar
-const getRandomColor = () => {
-  const colors = [
-    '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B',
-    '#EF4444', '#EC4899', '#14B8A6', '#F97316'
-  ];
-  return colors[Math.floor(Math.random() * colors.length)];
-};
-
 export function Signup() {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -55,18 +46,13 @@ export function Signup() {
         email_to_check: emailToCheck 
       });
 
-      console.log('Email check result:', { emailToCheck, data, error });
-
       if (error) {
         console.error('Email check error:', error);
         setEmailStatus(null);
         return;
       }
 
-      // data is BOOLEAN: true = taken, false = available
-      const status = data === true ? 'taken' : 'available';
-      console.log('Setting email status to:', status);
-      setEmailStatus(status);
+      setEmailStatus(data ? 'taken' : 'available');
     } catch (error) {
       console.error('Email check error:', error);
       setEmailStatus(null);
@@ -120,31 +106,21 @@ export function Signup() {
     setLoading(true);
     
     try {
-      // 1. Create auth user
+      // SIMPLIFIED: Just signup with metadata - the database trigger handles profile creation!
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            display_name: displayName,
+          }
+        }
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error('User creation failed');
 
-      // 2. Create profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
-          email: email,
-          display_name: displayName,
-          calendar_color: getRandomColor(),
-          is_approved: false,
-          approval_status: 'pending',
-          created_at: new Date().toISOString(),
-        });
-
-      if (profileError) throw profileError;
-
-      // 3. Notify admin of new user
+      // Notify admin of new user
       try {
         await notifyAdminNewUser(email, displayName);
       } catch (notifyError) {
@@ -152,22 +128,22 @@ export function Signup() {
         // Don't fail signup if notification fails
       }
 
-      // 4. That's it! User stays logged in
-      // The ProtectedRoute will redirect to /pending-approval automatically
+      // That's it! User stays logged in, profile auto-created by trigger
       toast.success('Account created successfully!', {
         description: 'Your account is pending approval. You\'ll receive access once approved.',
       });
 
-      // No sign-out, no redirect - just let the auth state update naturally
-      // The user will be automatically redirected to /pending-approval by ProtectedRoute
+      // The ProtectedRoute will automatically redirect to /pending-approval
       
     } catch (err: any) {
       console.error('Signup error:', err);
       
       if (err.message?.includes('already registered') || err.message?.includes('User already registered')) {
         setError('An account with this email already exists. Please sign in instead.');
+        setEmailStatus('taken');
       } else if (err.code === '23505') {
         setError('An account with this email already exists. Please sign in instead.');
+        setEmailStatus('taken');
       } else if (err.message?.includes('Invalid email')) {
         setError('Please enter a valid email address.');
       } else if (err.message?.includes('Password should be at least 6 characters')) {
