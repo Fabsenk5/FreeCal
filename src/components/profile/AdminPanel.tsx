@@ -13,7 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Check, X, ChevronDown, Loader2, Shield } from 'lucide-react';
+import { Check, X, ChevronDown, Loader2, Shield, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -32,7 +32,7 @@ export function AdminPanel() {
     open: boolean;
     userId: string | null;
     userName: string;
-    action: 'approve' | 'reject' | null;
+    action: 'approve' | 'reject' | 'delete' | null;
   }>({
     open: false,
     userId: null,
@@ -90,28 +90,33 @@ export function AdminPanel() {
 
     setProcessing(true);
     try {
-      const updates: Partial<Profile> = {
-        approval_status: actionDialog.action === 'approve' ? 'approved' : 'rejected',
-        is_approved: actionDialog.action === 'approve',
-      };
+      if (actionDialog.action === 'delete') {
+        // Delete user from auth and profiles
+        await handleDeleteUser(actionDialog.userId);
+      } else {
+        const updates: Partial<Profile> = {
+          approval_status: actionDialog.action === 'approve' ? 'approved' : 'rejected',
+          is_approved: actionDialog.action === 'approve',
+        };
 
-      if (actionDialog.action === 'approve') {
-        updates.approved_at = new Date().toISOString();
-        updates.approved_by = user.id;
+        if (actionDialog.action === 'approve') {
+          updates.approved_at = new Date().toISOString();
+          updates.approved_by = user.id;
+        }
+
+        const { error } = await supabase
+          .from('profiles')
+          .update(updates)
+          .eq('id', actionDialog.userId);
+
+        if (error) throw error;
+
+        toast.success(
+          actionDialog.action === 'approve' 
+            ? `${actionDialog.userName} has been approved!`
+            : `${actionDialog.userName} has been rejected`
+        );
       }
-
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', actionDialog.userId);
-
-      if (error) throw error;
-
-      toast.success(
-        actionDialog.action === 'approve' 
-          ? `${actionDialog.userName} has been approved!`
-          : `${actionDialog.userName} has been rejected`
-      );
 
       // Refresh user lists
       await fetchUsers();
@@ -124,7 +129,30 @@ export function AdminPanel() {
     }
   };
 
-  const openActionDialog = (userId: string, userName: string, action: 'approve' | 'reject') => {
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      // First delete from profiles (this will cascade to related data)
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userId);
+
+      if (profileError) throw profileError;
+
+      // Then delete from auth.users using admin API
+      const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+
+      if (authError) throw authError;
+
+      toast.success(`${actionDialog.userName} has been deleted successfully`);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Failed to delete user');
+      throw error;
+    }
+  };
+
+  const openActionDialog = (userId: string, userName: string, action: 'approve' | 'reject' | 'delete') => {
     setActionDialog({
       open: true,
       userId,
@@ -178,6 +206,16 @@ export function AdminPanel() {
             </p>
           )}
         </div>
+        {(actionType === 'approved' || actionType === 'rejected') && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => openActionDialog(user.id, user.display_name, 'delete')}
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
       </div>
       
       {showActions && (
