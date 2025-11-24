@@ -235,6 +235,29 @@ export function FreeTimeFinder() {
     return dateEvents.length === 0;
   };
 
+  // Check if a day has any free time slots (partial availability)
+  const hasAnyFreeTime = (date: Date | null): boolean => {
+    if (!date) return false;
+    if (selectedUsers.length === 0) return false;
+
+    // Check if within day range
+    const dayOfMonth = date.getDate();
+    if (dayOfMonth < dayRange[0] || dayOfMonth > dayRange[1]) return false;
+
+    // Check if there are any free slots for this date by testing hourly slots
+    const startTime = getTimeFromMinutes(timeFrame.startMinutes);
+    const endTime = getTimeFromMinutes(timeFrame.endMinutes);
+    
+    // Test each hour within the time frame
+    for (let hour = 0; hour < 24; hour++) {
+      if (isTimeSlotFree(date, hour, hour + 1)) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
   const freeTimeSlots = generateFreeTimeSlots();
 
   // Group slots by date for list view
@@ -400,58 +423,48 @@ export function FreeTimeFinder() {
           {/* User selection */}
           <div className="space-y-2">
             <Label>Check availability for</Label>
-            <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-3">
               {/* Current user */}
               {profile && user && (
-                <button
-                  type="button"
-                  onClick={() => toggleUser(user.id)}
-                  className="w-full flex items-center gap-3 p-3 bg-card rounded-lg hover:bg-accent transition-colors"
+                <label
+                  className="flex items-center space-x-2 cursor-pointer hover:bg-accent p-2 rounded transition-colors"
                 >
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: profile.calendar_color }}
+                  <input
+                    type="checkbox"
+                    checked={selectedUsers.includes(user.id)}
+                    onChange={() => toggleUser(user.id)}
+                    className="w-4 h-4 text-primary bg-card border-border rounded focus:ring-primary"
                   />
-                  <span className="flex-1 text-left text-sm">
+                  <span className="text-sm text-foreground truncate">
                     {profile.display_name} (You)
                   </span>
-                  {selectedUsers.includes(user.id) && (
-                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
-                      ✓
-                    </div>
-                  )}
-                </button>
+                </label>
               )}
 
               {/* Relationships */}
               {relationships.map((rel) => (
-                <button
+                <label
                   key={rel.id}
-                  type="button"
-                  onClick={() => toggleUser(rel.profile.id)}
-                  className="w-full flex items-center gap-3 p-3 bg-card rounded-lg hover:bg-accent transition-colors"
+                  className="flex items-center space-x-2 cursor-pointer hover:bg-accent p-2 rounded transition-colors"
                 >
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: rel.profile.calendar_color }}
+                  <input
+                    type="checkbox"
+                    checked={selectedUsers.includes(rel.profile.id)}
+                    onChange={() => toggleUser(rel.profile.id)}
+                    className="w-4 h-4 text-primary bg-card border-border rounded focus:ring-primary"
                   />
-                  <span className="flex-1 text-left text-sm">
+                  <span className="text-sm text-foreground truncate">
                     {rel.profile.display_name}
                   </span>
-                  {selectedUsers.includes(rel.profile.id) && (
-                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
-                      ✓
-                    </div>
-                  )}
-                </button>
+                </label>
               ))}
+            </div>
 
               {relationships.length === 0 && !profile && (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   No relationships yet. Add connections in your profile.
                 </p>
               )}
-            </div>
           </div>
         </div>
 
@@ -487,7 +500,8 @@ export function FreeTimeFinder() {
 
                   const dayOfMonth = date.getDate();
                   const isInRange = dayOfMonth >= dayRange[0] && dayOfMonth <= dayRange[1];
-                  const isFree = isDateFree(date);
+                  const isFullyFree = isDateFree(date);
+                  const isPartiallyFree = !isFullyFree && hasAnyFreeTime(date);
                   const isToday =
                     date.getDate() === new Date().getDate() &&
                     date.getMonth() === new Date().getMonth();
@@ -497,11 +511,11 @@ export function FreeTimeFinder() {
                       key={date.toISOString()}
                       className={cn(
                         'aspect-square rounded-lg p-1 flex items-center justify-center transition-all relative text-sm font-medium',
-                        isFree && isInRange &&
-                          'bg-[hsl(var(--free-time)_/_0.2)] text-[hsl(var(--free-time))]',
-                        (!isFree || !isInRange) && 'text-muted-foreground',
+                        isFullyFree && isInRange && 'bg-green-600/20 hover:bg-green-600/30 text-green-600',
+                        isPartiallyFree && isInRange && 'bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-600',
+                        !isFullyFree && !isPartiallyFree && 'text-muted-foreground bg-card hover:bg-muted',
                         !isInRange && 'opacity-30',
-                        isToday && 'border-2 border-primary'
+                        isToday && 'ring-2 ring-primary'
                       )}
                     >
                       {date.getDate()}
@@ -512,9 +526,24 @@ export function FreeTimeFinder() {
 
               {/* Legend */}
               <div className="mt-4 pt-4 border-t border-border">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-[hsl(var(--free-time)_/_0.2)]" />
-                  <span className="text-xs text-muted-foreground">Available</span>
+                <div className="flex items-center space-x-6">
+                  {/* Fully Available - Green */}
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 rounded bg-green-600/20 border border-green-600/40"></div>
+                    <span className="text-xs text-muted-foreground">Fully Available</span>
+                  </div>
+                  
+                  {/* Partially Available - Yellow */}
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 rounded bg-yellow-600/20 border border-yellow-600/40"></div>
+                    <span className="text-xs text-muted-foreground">Partially Available</span>
+                  </div>
+                  
+                  {/* Not Available - Dark/Grey */}
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 rounded bg-card border border-border"></div>
+                    <span className="text-xs text-muted-foreground">Not Available</span>
+                  </div>
                 </div>
               </div>
             </div>
