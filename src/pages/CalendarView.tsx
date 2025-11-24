@@ -281,24 +281,27 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
                   creatorName: selectedEvent.creator_name,
                 }}
               />
-              {profile && selectedEvent.user_id === profile.id && (
-                <div className="flex gap-2">
-                  <Button
-                    className="flex-1"
-                    variant="outline"
-                    onClick={handleEditEvent}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    variant="destructive"
-                    onClick={handleDeleteEvent}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              )}
+              <div className="flex gap-2">
+                {/* Only allow editing/deleting own events */}
+                {profile && selectedEvent.user_id === profile.id && (
+                  <>
+                    <Button
+                      className="flex-1"
+                      variant="outline"
+                      onClick={handleEditEvent}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      variant="destructive"
+                      onClick={handleDeleteEvent}
+                    >
+                      Delete
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>
