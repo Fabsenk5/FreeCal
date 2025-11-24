@@ -89,6 +89,13 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       setRecurrenceInterval(eventToEdit.recurrence_interval || 1);
       setAttendees(eventToEdit.attendees || []);
       setViewers(eventToEdit.viewers || []);
+      
+      // Build unified sharing status from attendees and viewers
+      const status = {};
+      (eventToEdit.attendees || []).forEach(id => { status[id] = 'attendee'; });
+      (eventToEdit.viewers || []).forEach(id => { status[id] = 'viewer'; });
+      setSharingStatus(status);
+      
       setEventColor(eventToEdit.color || eventToEdit.creator_color || profile?.calendar_color || 'hsl(217, 91%, 60%)');
       setNotes(eventToEdit.description || '');
       setLocation(eventToEdit.location || '');
@@ -432,6 +439,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
     setRecurrenceInterval(1);
     setAttendees([]);
     setViewers([]);
+    setSharingStatus({});
     setEventColor(profile?.calendar_color || 'hsl(217, 91%, 60%)');
     setLocation('');
     setEventUrl('');
@@ -454,6 +462,14 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
     setRecurrenceDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
+  };
+
+  const toggleSharingStatus = (userId: string) => {
+    setSharingStatus((prev) => {
+      const current = prev[userId] || 'none';
+      const next = current === 'none' ? 'viewer' : current === 'viewer' ? 'attendee' : 'none';
+      return { ...prev, [userId]: next };
+    });
   };
 
   if (relLoading) {
@@ -676,70 +692,49 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
             </div>
           )}
 
-          {/* Attendees */}
+          {/* Share with (Unified) */}
           <div className="space-y-2">
-            <Label>Attendees</Label>
+            <Label>Share with</Label>
             <p className="text-xs text-muted-foreground mb-2">
-              Attendees will block their calendar time
+              Tap to cycle: None → Visible To → Attendee
             </p>
             <div className="space-y-2">
-              {relationships.map((rel) => (
-                <button
-                  key={rel.id}
-                  type="button"
-                  onClick={() => toggleAttendee(rel.profile.id)}
-                  className="w-full flex items-center gap-3 p-3 bg-card rounded-lg hover:bg-accent transition-colors"
-                >
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: rel.profile.calendar_color }}
-                  />
-                  <span className="flex-1 text-left text-sm">
-                    {rel.profile.display_name}
-                  </span>
-                  {attendees.includes(rel.profile.id) && (
-                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
-                      ✓
-                    </div>
-                  )}
-                </button>
-              ))}
-              {relationships.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No relationships yet. Add connections in your profile.
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Viewers */}
-          <div className="space-y-2">
-            <Label>Visible to</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Viewers can see the event but won't block their calendar
-            </p>
-            <div className="space-y-2">
-              {relationships.map((rel) => (
-                <button
-                  key={rel.id}
-                  type="button"
-                  onClick={() => toggleViewer(rel.profile.id)}
-                  className="w-full flex items-center gap-3 p-3 bg-card rounded-lg hover:bg-accent transition-colors"
-                >
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: rel.profile.calendar_color }}
-                  />
-                  <span className="flex-1 text-left text-sm">
-                    {rel.profile.display_name}
-                  </span>
-                  {viewers.includes(rel.profile.id) && (
-                    <div className="w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs">
-                      ✓
-                    </div>
-                  )}
-                </button>
-              ))}
+              {relationships.map((rel) => {
+                const status = sharingStatus[rel.profile.id] || 'none';
+                
+                return (
+                  <button
+                    key={rel.id}
+                    type="button"
+                    onClick={() => toggleSharingStatus(rel.profile.id)}
+                    className="w-full flex items-center gap-3 p-3 bg-card rounded-lg hover:bg-accent transition-colors"
+                  >
+                    <div
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: rel.profile.calendar_color }}
+                    />
+                    <span className="flex-1 text-left text-sm">
+                      {rel.profile.display_name}
+                    </span>
+                    {status === 'viewer' && (
+                      <div className="flex items-center gap-1">
+                        <div className="w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs">
+                          👁️
+                        </div>
+                        <span className="text-xs text-muted-foreground">Visible</span>
+                      </div>
+                    )}
+                    {status === 'attendee' && (
+                      <div className="flex items-center gap-1">
+                        <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
+                          ✓
+                        </div>
+                        <span className="text-xs text-foreground">Attendee</span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
               {relationships.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   No relationships yet. Add connections in your profile.
