@@ -42,10 +42,12 @@ export function Signup() {
       await signUp(email, password, displayName);
       // Navigate immediately with success flag
       navigate('/login?registered=true');
-    } catch (err) {
+    } catch (err: any) {
       // Show user-friendly error messages
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      const errorCode = (err as any)?.code;
+      const errorMessage = err?.message || '';
+      const errorCode = err?.code || '';
+      
+      console.log('Signup error details:', { errorMessage, errorCode, err });
       
       if (errorMessage.includes('User already registered') || errorCode === '23505') {
         setError('An account with this email already exists. Please use a different email or sign in.');
@@ -59,7 +61,7 @@ export function Signup() {
         setError('Account creation failed due to security policy. Please contact support.');
       } else {
         // Show the actual error message for debugging
-        setError(errorMessage || 'Failed to create account. Please try again.');
+        setError(errorMessage || errorCode || 'Failed to create account. Please try again.');
       }
       
       console.error('Signup failed:', err);
