@@ -5,6 +5,21 @@ import { toast } from 'sonner';
 import { WelcomeDialog } from '@/components/WelcomeDialog';
 import { notifyAdminNewUser } from '@/lib/notifications';
 
+// Generate random color for calendar
+const getRandomColor = () => {
+  const colors = [
+    '#8B5CF6', // Purple
+    '#3B82F6', // Blue
+    '#10B981', // Green
+    '#F59E0B', // Orange
+    '#EF4444', // Red
+    '#EC4899', // Pink
+    '#14B8A6', // Teal
+    '#F97316', // Orange
+  ];
+  return colors[Math.floor(Math.random() * colors.length)];
+};
+
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
@@ -114,6 +129,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Notify admin of new user
       await notifyAdminNewUser(email, displayName);
+
+      // Sign out immediately to prevent auto-login
+      await supabase.auth.signOut();
 
       toast.success('Account created successfully!', {
         description: 'Your account is pending approval. You\'ll receive an email when approved.',
