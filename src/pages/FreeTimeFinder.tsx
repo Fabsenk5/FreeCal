@@ -235,40 +235,21 @@ export function FreeTimeFinder() {
       if (!isUserInvolved) return false;
 
       // Check if event overlaps with this day
-      return eventStart < dayEnd && eventEnd > dayStart;
-    });
-
-    return !hasOverlappingEvents;
-  };
-
-  const isDateFree = (date: Date | null): boolean => {
-    if (!date) return false;
-    if (selectedUsers.length === 0) return false;
-
-    // Check if within day range
-    const dayOfMonth = date.getDate();
-    if (dayOfMonth < dayRange[0] || dayOfMonth > dayRange[1]) return false;
-
-    // Create start and end of day for comparison
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date);
-    dayEnd.setHours(23, 59, 59, 999);
-
-    // Check if any selected user has events that overlap with this date
-    const hasOverlappingEvents = events.some((event) => {
-      const eventStart = new Date(event.start_time);
-      const eventEnd = new Date(event.end_time);
-
-      // Check if event creator or any attendee is in selected users
-      const isUserInvolved =
-        selectedUsers.includes(event.user_id) ||
-        event.attendees?.some((attendeeId) => selectedUsers.includes(attendeeId));
-
-      if (!isUserInvolved) return false;
-
-      // Check if event overlaps with this day
-      return eventStart < dayEnd && eventEnd > dayStart;
+      const overlaps = eventStart < dayEnd && eventEnd > dayStart;
+      
+      // Debug logging
+      if (date.getDate() === 26 && overlaps) {
+        console.log('Nov 26 conflict found:', {
+          eventTitle: event.title,
+          eventUserId: event.user_id,
+          selectedUsers: selectedUsers,
+          isUserInvolved,
+          eventStart,
+          eventEnd
+        });
+      }
+      
+      return overlaps;
     });
 
     return !hasOverlappingEvents;
