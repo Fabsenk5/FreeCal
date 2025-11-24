@@ -34,7 +34,7 @@ export function WelcomeDialog({ open, onClose }: WelcomeDialogProps) {
     {
       icon: Users,
       title: 'Connect with Others',
-      description: 'Send relationship requests to family & friends. Once accepted, you'll see each other's calendars and can find free time together.',
+      description: 'Send relationship requests to family & friends. Once accepted, you can see each other calendars and find free time together.',
       action: 'Next',
     },
     {
