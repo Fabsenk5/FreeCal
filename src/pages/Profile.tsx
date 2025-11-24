@@ -123,7 +123,7 @@ export function Profile() {
       }
 
       toast.success('Request sent!', {
-        description: 'You'll see their calendar once they accept your request.',
+          description: 'You will see their calendar once they accept your request.',
       });
 
       setSearchEmail('');
