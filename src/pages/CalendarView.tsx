@@ -124,9 +124,42 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
   return (
     <div className="flex flex-col h-screen bg-background">
       <MobileHeader
-        title="Calendar"
-        rightAction={<ViewToggle view={view} onViewChange={setView} />}
+        title="FreeCal"
+        rightAction={
+          <div className="flex items-center gap-3">
+            {/* Color legend - compact */}
+            <div className="flex items-center gap-2">
+              {profile && (
+                <div className="flex items-center gap-1">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{ backgroundColor: profile.calendar_color }}
+                  />
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
+                    {profile.display_name.split(' ')[0]}
+                  </span>
+                </div>
+              )}
+              {relationships.slice(0, 3).map((rel) => (
+                <div key={rel.id} className="flex items-center gap-1">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{ backgroundColor: rel.profile.calendar_color }}
+                  />
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
+                    {rel.profile.display_name.split(' ')[0]}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        }
       />
+
+      {/* View toggle - centered below header */}
+      <div className="flex justify-center py-2 border-b border-border bg-background/95 backdrop-blur-sm sticky top-[var(--mobile-header-height)] z-30">
+        <ViewToggle view={view} onViewChange={setView} />
+      </div>
 
       <div className="flex-1 overflow-y-auto pb-20 px-4">
         {/* Month/Year navigation with dropdowns */}
@@ -169,32 +202,6 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
                 <SelectItem value="2027">2027</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          
-          {/* Color legend - compact horizontal version */}
-          <div className="flex items-center gap-2 flex-1 justify-center overflow-x-auto">
-            {profile && (
-              <div className="flex items-center gap-1.5 shrink-0">
-                <div
-                  className="w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: profile.calendar_color }}
-                />
-                <span className="text-xs text-muted-foreground">
-                  {profile.display_name.split(' ')[0]}
-                </span>
-              </div>
-            )}
-            {relationships.map((rel) => (
-              <div key={rel.id} className="flex items-center gap-1.5 shrink-0">
-                <div
-                  className="w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: rel.profile.calendar_color }}
-                />
-                <span className="text-xs text-muted-foreground">
-                  {rel.profile.display_name.split(' ')[0]}
-                </span>
-              </div>
-            ))}
           </div>
           
           <div className="flex gap-1 shrink-0">
