@@ -55,11 +55,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Show welcome dialog for new users
+    // Show welcome dialog ONLY for approved users on their first login
     if (user && profile && !loading) {
-      const hasSeenWelcome = localStorage.getItem('welcomeShown');
-      if (!hasSeenWelcome) {
-        setShowWelcome(true);
+      // Only show welcome if user is approved
+      if (profile.is_approved) {
+        const hasSeenWelcome = localStorage.getItem('welcomeShown');
+        if (!hasSeenWelcome) {
+          setShowWelcome(true);
+        }
       }
     }
   }, [user, profile, loading]);
