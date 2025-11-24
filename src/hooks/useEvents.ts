@@ -44,6 +44,8 @@ export interface EventWithAttendees extends Event {
   creator_name?: string;
   /** Calendar color of the event creator */
   creator_color?: string;
+  /** Whether current user is only a viewer (not creator or attendee) */
+  isViewer?: boolean;
 }
 
 /**
@@ -153,12 +155,20 @@ export function useEvents() {
 
           const creator = profileMap.get(event.user_id);
           
+          // Determine if current user is only a viewer
+          const attendeeIds = attendees?.map((a) => a.user_id) || [];
+          const viewerIds = viewers?.map((v) => v.user_id) || [];
+          const isCreator = event.user_id === user?.id;
+          const isAttendee = attendeeIds.includes(user?.id || '');
+          const isViewer = viewerIds.includes(user?.id || '') && !isCreator && !isAttendee;
+          
           return {
             ...event,
-            attendees: attendees?.map((a) => a.user_id) || [],
-            viewers: viewers?.map((v) => v.user_id) || [],
+            attendees: attendeeIds,
+            viewers: viewerIds,
             creator_name: creator?.display_name,
             creator_color: creator?.calendar_color || 'hsl(217, 91%, 60%)',
+            isViewer,
           };
         })
       );
