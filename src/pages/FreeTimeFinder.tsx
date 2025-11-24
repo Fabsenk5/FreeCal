@@ -26,7 +26,7 @@ interface FreeTimeSlot {
 export function FreeTimeFinder() {
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear] = useState(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [timeFrame, setTimeFrame] = useState<TimeFrameValue>({
     startMinutes: 540,  // Day 1 09:00
@@ -309,6 +309,29 @@ export function FreeTimeFinder() {
       <div className="flex-1 overflow-y-auto pb-20 px-4">
         {/* Filters */}
         <div className="space-y-4 py-4">
+          {/* Year selector */}
+          <div className="space-y-2">
+            <Label>Year</Label>
+            <Select
+              value={selectedYear.toString()}
+              onValueChange={(value) => {
+                setSelectedYear(parseInt(value));
+                // Reset day range when year changes
+                const newDaysInMonth = new Date(parseInt(value), selectedMonth + 1, 0).getDate();
+                setDayRange([1, newDaysInMonth]);
+              }}
+            >
+              <SelectTrigger className="bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2025">2025</SelectItem>
+                <SelectItem value="2026">2026</SelectItem>
+                <SelectItem value="2027">2027</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Month selector */}
           <div className="space-y-2">
             <Label>Month</Label>
@@ -327,7 +350,7 @@ export function FreeTimeFinder() {
               <SelectContent>
                 {Array.from({ length: 12 }, (_, i) => (
                   <SelectItem key={i} value={i.toString()}>
-                    {getMonthName(i)} {selectedYear}
+                    {getMonthName(i)}
                   </SelectItem>
                 ))}
               </SelectContent>
