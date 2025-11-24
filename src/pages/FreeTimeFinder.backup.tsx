@@ -1,3 +1,9 @@
+/**
+ * BACKUP - Working version before UI improvements
+ * Date: 2025-11-24
+ * To restore: Copy this file back to FreeTimeFinder.tsx
+ */
+
 import { useState } from 'react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -176,13 +182,11 @@ export function FreeTimeFinder() {
 
           const isOvernight = nextTime.hours < currentTime.hours || (currentTime.hours >= 20 || nextTime.hours <= 6);
 
-          const duration = nextMinutes - currentMinutes;
-
           slots.push({
             date: new Date(slotDate),
             startTime: formatTime(startTimeStr),
             endTime: formatTime(endTimeStr),
-            duration,
+            duration: 30,
             type: isOvernight ? 'overnight' : 'daytime',
           });
         }
@@ -202,46 +206,6 @@ export function FreeTimeFinder() {
     const period = hours >= 12 ? 'PM' : 'AM';
     const hours12 = hours % 12 || 12;
     return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
-  };
-
-  const parseTime12ToMinutes = (t: string): number => {
-    const [time, period] = t.split(' ');
-    const [hStr, mStr] = time.split(':');
-    let h = parseInt(hStr, 10);
-    const m = parseInt(mStr, 10);
-    if (period === 'PM' && h !== 12) h += 12;
-    if (period === 'AM' && h === 12) h = 0;
-    return h * 60 + m;
-  };
-
-  const mergeConsecutiveSlots = (slots: FreeTimeSlot[]): FreeTimeSlot[] => {
-    if (slots.length === 0) return [];
-    const sorted = [...slots].sort((a, b) => {
-      if (a.date.getTime() !== b.date.getTime()) return a.date.getTime() - b.date.getTime();
-      const aStart = parseTime12ToMinutes(a.startTime);
-      const bStart = parseTime12ToMinutes(b.startTime);
-      return aStart - bStart;
-    });
-    const merged: FreeTimeSlot[] = [];
-    let current = sorted[0];
-    for (let i = 1; i < sorted.length; i++) {
-      const next = sorted[i];
-      const currentEnd = parseTime12ToMinutes(current.endTime);
-      const nextStart = parseTime12ToMinutes(next.startTime);
-      if (
-        current.date.getTime() === next.date.getTime() &&
-        current.type === next.type &&
-        currentEnd === nextStart
-      ) {
-        current.endTime = next.endTime;
-        current.duration = parseTime12ToMinutes(current.endTime) - parseTime12ToMinutes(current.startTime);
-      } else {
-        merged.push(current);
-        current = next;
-      }
-    }
-    merged.push(current);
-    return merged;
   };
 
   const isDateFree = (date: Date | null): boolean => {
@@ -271,8 +235,7 @@ export function FreeTimeFinder() {
     return dateEvents.length === 0;
   };
 
-  const rawFreeTimeSlots = generateFreeTimeSlots();
-  const freeTimeSlots = mergeConsecutiveSlots(rawFreeTimeSlots);
+  const freeTimeSlots = generateFreeTimeSlots();
 
   // Group slots by date for list view
   const groupedSlots = freeTimeSlots.reduce((acc, slot) => {
