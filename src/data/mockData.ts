@@ -16,6 +16,7 @@ export interface CalendarEvent {
   userId: string;
   attendeeIds: string[];
   viewerIds?: string[]; // Added for viewers feature
+  isViewer?: boolean; // Whether current user is only a viewer (not creator or attendee)
   recurrence?: {
     frequency: 'daily' | 'weekly' | 'monthly' | 'custom';
     interval?: number;

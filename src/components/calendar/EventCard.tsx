@@ -19,12 +19,14 @@ export function EventCard({ event, onClick }: EventCardProps) {
   const isMultiDay = formatDate(event.startDate) !== formatDate(event.endDate);
 
   // Convert HSL color to rgba for background
-  const getBackgroundColor = (color: string) => {
+  const getBackgroundColor = (color: string, isViewer?: boolean) => {
     // Extract HSL values from string like "hsl(217, 91%, 60%)"
     const hslMatch = color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
     if (hslMatch) {
       const [, h, s, l] = hslMatch;
-      return `hsla(${h}, ${s}%, ${l}%, 0.15)`;
+      // Use 50% opacity (0.075) for viewer events, normal (0.15) for others
+      const opacity = isViewer ? 0.075 : 0.15;
+      return `hsla(${h}, ${s}%, ${l}%, ${opacity})`;
     }
     return color;
   };
@@ -36,7 +38,7 @@ export function EventCard({ event, onClick }: EventCardProps) {
         'w-full text-left p-3 rounded-lg border-l-4 transition-all hover:scale-[1.02] active:scale-[0.98] text-foreground'
       )}
       style={{
-        backgroundColor: getBackgroundColor(event.color),
+        backgroundColor: getBackgroundColor(event.color, event.isViewer),
         borderColor: event.color,
         transition: 'var(--transition-smooth)'
       }}
@@ -78,8 +80,8 @@ export function EventCard({ event, onClick }: EventCardProps) {
 
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
-            <div 
-              className="w-2 h-2 rounded-full" 
+            <div
+              className="w-2 h-2 rounded-full"
               style={{ backgroundColor: event.color }}
             />
             <span className="font-medium">{event.creatorName || creator?.name || 'Unknown'}</span>
