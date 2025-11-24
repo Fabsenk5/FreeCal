@@ -423,48 +423,39 @@ export function FreeTimeFinder() {
           {/* User selection */}
           <div className="space-y-2">
             <Label>Check availability for</Label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               {/* Current user */}
               {profile && user && (
-                <label
-                  className="flex items-center space-x-2 cursor-pointer hover:bg-accent p-2 rounded transition-colors"
+                <button
+                  onClick={() => toggleUser(user.id)}
+                  className={cn(
+                    "flex items-center justify-center gap-2 p-3 rounded-lg border transition-all text-sm font-medium",
+                    selectedUsers.includes(user.id)
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                      : "bg-card text-foreground border-border hover:bg-accent"
+                  )}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedUsers.includes(user.id)}
-                    onChange={() => toggleUser(user.id)}
-                    className="w-4 h-4 text-primary bg-card border-border rounded focus:ring-primary"
-                  />
-                  <span className="text-sm text-foreground truncate">
-                    {profile.display_name} (You)
-                  </span>
-                </label>
+                  <span className="truncate">{profile.display_name.split(' ')[0]}</span>
+                  <span className="text-xs opacity-70">(You)</span>
+                </button>
               )}
 
               {/* Relationships */}
               {relationships.map((rel) => (
-                <label
+                <button
                   key={rel.id}
-                  className="flex items-center space-x-2 cursor-pointer hover:bg-accent p-2 rounded transition-colors"
+                  onClick={() => toggleUser(rel.profile.id)}
+                  className={cn(
+                    "flex items-center justify-center p-3 rounded-lg border transition-all text-sm font-medium truncate",
+                    selectedUsers.includes(rel.profile.id)
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                      : "bg-card text-foreground border-border hover:bg-accent"
+                  )}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedUsers.includes(rel.profile.id)}
-                    onChange={() => toggleUser(rel.profile.id)}
-                    className="w-4 h-4 text-primary bg-card border-border rounded focus:ring-primary"
-                  />
-                  <span className="text-sm text-foreground truncate">
-                    {rel.profile.display_name}
-                  </span>
-                </label>
+                  {rel.profile.display_name.split(' ')[0]}
+                </button>
               ))}
             </div>
-
-              {relationships.length === 0 && !profile && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No relationships yet. Add connections in your profile.
-                </p>
-              )}
           </div>
         </div>
 
