@@ -745,7 +745,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
                         <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
                           ✓
                         </div>
-                        <span className="text-xs text-foreground">Attendee</</span>
+                        <span className="text-xs text-foreground">Attendee</span>
                       </div>
                     )}
                   </button>
