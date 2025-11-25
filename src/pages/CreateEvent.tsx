@@ -264,11 +264,27 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       ? new Date(endDate || startDate)
       : new Date(`${endDate || startDate}T${endTime || startTime}`);
 
-    if (endDateTime <= startDateTime) {
-      toast.error('End time must be after start time', {
-        description: 'Please adjust your event dates and times.',
-      });
-      return;
+    // For all-day events, only check dates (end can equal start for single-day events)
+    // For timed events, end must be strictly after start
+    if (isAllDay) {
+      // Compare only dates for all-day events
+      const startDateOnly = new Date(startDate).setHours(0, 0, 0, 0);
+      const endDateOnly = new Date(endDate || startDate).setHours(0, 0, 0, 0);
+      
+      if (endDateOnly < startDateOnly) {
+        toast.error('End date must be on or after start date', {
+          description: 'Please adjust your event dates.',
+        });
+        return;
+      }
+    } else {
+      // For timed events, end must be after start
+      if (endDateTime <= startDateTime) {
+        toast.error('End time must be after start time', {
+          description: 'Please adjust your event dates and times.',
+        });
+        return;
+      }
     }
 
     // Build attendees and viewers arrays from unified sharing status
@@ -729,7 +745,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
                         <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
                           ✓
                         </div>
-                        <span className="text-xs text-foreground">Attendee</span>
+                        <span className="text-xs text-foreground">Attendee</</span>
                       </div>
                     )}
                   </button>
