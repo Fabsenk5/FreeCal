@@ -227,6 +227,7 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
             userId: e.user_id,
             attendeeIds: e.attendees || [],
             viewerIds: e.viewers || [],
+            isViewer: e.isViewer,
             color: e.creator_color || 'hsl(217, 91%, 60%)',
             creatorName: e.creator_name,
           }))}
@@ -249,6 +250,7 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
                 userId: e.user_id,
                 attendeeIds: e.attendees || [],
                 viewerIds: e.viewers || [],
+                isViewer: e.isViewer,
                 color: e.creator_color || 'hsl(217, 91%, 60%)',
                 creatorName: e.creator_name,
               }))}
@@ -277,6 +279,7 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
                   userId: selectedEvent.user_id,
                   attendeeIds: selectedEvent.attendees || [],
                   viewerIds: selectedEvent.viewers || [],
+                  isViewer: selectedEvent.isViewer,
                   color: selectedEvent.creator_color || 'hsl(217, 91%, 60%)',
                   creatorName: selectedEvent.creator_name,
                 }}
