@@ -1,7 +1,7 @@
 import { CalendarEvent, getUserById, getUsersByIds } from '@/data/mockData';
 import { formatTime, formatDate } from '@/utils/dateUtils';
 import { cn } from '@/lib/utils';
-import { Clock, Users, Repeat, Calendar, Eye, MapPin } from 'lucide-react';
+import { Clock, Users, Repeat, Calendar, Eye, MapPin, Link } from 'lucide-react';
 
 interface EventCardProps {
   event: CalendarEvent;
@@ -37,10 +37,10 @@ export function EventCard({ event, onClick }: EventCardProps) {
     
     const { frequency, endDate, daysOfWeek } = event.recurrence;
     
-    let freqText = frequency;
+    let freqText = frequency.charAt(0).toUpperCase() + frequency.slice(1);
     if (daysOfWeek && daysOfWeek.length > 0) {
       const days = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-      freqText = daysOfWeek.map(d => days[d]).join(',');
+      freqText = daysOfWeek.map(d => days[d]).join(', ');
     }
     
     if (endDate) {
@@ -82,16 +82,18 @@ export function EventCard({ event, onClick }: EventCardProps) {
       <h3 className="font-semibold text-sm leading-tight mb-2">{event.title}</h3>
 
       <div className="space-y-1">
-        {/* Line 1: Date + Time + Tentative status */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+        {/* Line 1: Date (with icon) + Time (with icon) + Tentative status */}
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+          <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
           <span>
             {isMultiDay
               ? `${formatDate(event.startDate)} - ${formatDate(event.endDate)}`
               : formatDate(event.startDate)}
           </span>
+          
           {!event.isAllDay && (
             <>
-              <span>•</span>
+              <Clock className="w-3.5 h-3.5 flex-shrink-0 ml-1" />
               <span>
                 {formatTime(event.startDate)} - {formatTime(event.endDate)}
               </span>
@@ -99,19 +101,36 @@ export function EventCard({ event, onClick }: EventCardProps) {
           )}
           {event.isAllDay && (
             <>
-              <span>•</span>
+              <Clock className="w-3.5 h-3.5 flex-shrink-0 ml-1" />
               <span>All day</span>
+            </>
+          )}
+          
+          {event.isTentative && (
+            <>
+              <span className="ml-1">•</span>
+              <span className="text-amber-500 italic">Tentative</span>
             </>
           )}
         </div>
 
-        {/* Line 2: Status + Location + Creator */}
-        <div className="flex items-center gap-2 text-xs flex-wrap">
+        {/* Line 2: Attendee/Viewer status + Location + Creator */}
+        <div className="flex items-center gap-1.5 text-xs flex-wrap">
           {userStatus && (
             <>
               <div className={cn("flex items-center gap-1", userStatus.color)}>
-                <userStatus.icon className="w-3 h-3" />
+                <userStatus.icon className="w-3.5 h-3.5" />
                 <span>{userStatus.text}</span>
+              </div>
+              <span className="text-muted-foreground">•</span>
+            </>
+          )}
+          
+          {event.location && (
+            <>
+              <div className="flex items-center gap-1 text-muted-foreground">
+                <MapPin className="w-3.5 h-3.5" />
+                <span className="truncate max-w-[120px]">{event.location}</span>
               </div>
               <span className="text-muted-foreground">•</span>
             </>
@@ -126,18 +145,31 @@ export function EventCard({ event, onClick }: EventCardProps) {
           </div>
         </div>
 
-        {/* Line 3: Recurring info + First line of description */}
-        {(event.recurrence || firstLineDescription) && (
-          <div className="flex items-start gap-2 text-xs text-muted-foreground">
+        {/* Line 3: Recurring info (icon + details) + URL + First line of description/note */}
+        {(event.recurrence || event.url || firstLineDescription) && (
+          <div className="flex items-start gap-1.5 text-xs text-muted-foreground flex-wrap">
             {event.recurrence && (
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <Repeat className="w-3 h-3" />
-                <span>{getRecurrenceText()}</span>
-              </div>
+              <>
+                <Repeat className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span className="flex-shrink-0">{getRecurrenceText()}</span>
+              </>
             )}
-            {event.recurrence && firstLineDescription && (
+            
+            {event.recurrence && (event.url || firstLineDescription) && (
               <span>•</span>
             )}
+            
+            {event.url && (
+              <>
+                <Link className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span className="truncate max-w-[150px]">{event.url}</span>
+              </>
+            )}
+            
+            {event.url && firstLineDescription && (
+              <span>•</span>
+            )}
+            
             {firstLineDescription && (
               <span className="line-clamp-1 flex-1">{firstLineDescription}</span>
             )}
