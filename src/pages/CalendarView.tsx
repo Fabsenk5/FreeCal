@@ -230,7 +230,16 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
             isViewer: e.isViewer,
             color: e.creator_color || 'hsl(217, 91%, 60%)',
             creatorName: e.creator_name,
-          }))}
+            location: e.location || undefined,
+            url: e.url || undefined,
+            isTentative: e.is_tentative || false,
+            recurrence: e.recurrence_type && e.recurrence_type !== 'none' ? {
+              frequency: e.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
+              interval: e.recurrence_interval || undefined,
+              endDate: e.recurrence_end_date ? new Date(e.recurrence_end_date) : undefined,
+              daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
+            } : undefined,
+          })))}
           selectedDate={selectedDate}
           onDateSelect={handleDateSelect}
         />
@@ -253,6 +262,15 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
                 isViewer: e.isViewer,
                 color: e.creator_color || 'hsl(217, 91%, 60%)',
                 creatorName: e.creator_name,
+                location: e.location || undefined,
+                url: e.url || undefined,
+                isTentative: e.is_tentative || false,
+                recurrence: e.recurrence_type && e.recurrence_type !== 'none' ? {
+                  frequency: e.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
+                  interval: e.recurrence_interval || undefined,
+                  endDate: e.recurrence_end_date ? new Date(e.recurrence_end_date) : undefined,
+                  daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
+                } : undefined,
               }))}
               onEventClick={(event) => setSelectedEventId(event.id)}
             />
@@ -282,6 +300,15 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
                   isViewer: selectedEvent.isViewer,
                   color: selectedEvent.creator_color || 'hsl(217, 91%, 60%)',
                   creatorName: selectedEvent.creator_name,
+                  location: selectedEvent.location || undefined,
+                  url: selectedEvent.url || undefined,
+                  isTentative: selectedEvent.is_tentative || false,
+                  recurrence: selectedEvent.recurrence_type && selectedEvent.recurrence_type !== 'none' ? {
+                    frequency: selectedEvent.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
+                    interval: selectedEvent.recurrence_interval || undefined,
+                    endDate: selectedEvent.recurrence_end_date ? new Date(selectedEvent.recurrence_end_date) : undefined,
+                    daysOfWeek: selectedEvent.recurrence_days?.map(d => parseInt(d)) || undefined,
+                  } : undefined,
                 }}
               />
               <div className="flex gap-2">
