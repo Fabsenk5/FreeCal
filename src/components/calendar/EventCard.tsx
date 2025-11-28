@@ -53,6 +53,13 @@ export function EventCard({ event, onClick }: EventCardProps) {
   // Get first line of description
   const firstLineDescription = event.description?.split('\n')[0];
 
+  // Determine attendee/viewer status
+  const userStatus = event.isViewer
+    ? { icon: Eye, text: 'Viewing', color: 'text-green-500' }
+    : event.attendeeIds && event.attendeeIds.length > 0
+      ? { icon: Users, text: 'Attending', color: 'text-blue-500' }
+      : null;
+
   return (
     <button
       onClick={onClick}
@@ -95,8 +102,18 @@ export function EventCard({ event, onClick }: EventCardProps) {
           )}
         </div>
 
-        {/* Line 2: Location (MapPin icon) + Creator (color dot) */}
+        {/* Line 2: Attendee/Viewer status + Location (MapPin icon) + Creator (color dot) */}
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+          {userStatus && (
+            <>
+              <div className={cn("flex items-center gap-1", userStatus.color)}>
+                <userStatus.icon className="w-3.5 h-3.5" />
+                <span>{userStatus.text}</span>
+              </div>
+              <span>•</span>
+            </>
+          )}
+          
           {event.location && (
             <>
               <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
