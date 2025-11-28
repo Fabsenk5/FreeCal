@@ -53,19 +53,6 @@ export function EventCard({ event, onClick }: EventCardProps) {
   // Get first line of description
   const firstLineDescription = event.description?.split('\n')[0];
 
-  // Determine user's status for this event
-  const getUserStatus = () => {
-    if (event.isViewer) {
-      return { icon: Eye, text: 'Viewing', color: 'text-muted-foreground' };
-    }
-    if (attendees.length > 1) {
-      return { icon: Users, text: 'Attending', color: 'text-blue-400' };
-    }
-    return null;
-  };
-
-  const userStatus = getUserStatus();
-
   return (
     <button
       onClick={onClick}
@@ -82,7 +69,7 @@ export function EventCard({ event, onClick }: EventCardProps) {
       <h3 className="font-semibold text-sm leading-tight mb-2">{event.title}</h3>
 
       <div className="space-y-1">
-        {/* Line 1: Date (with icon) + Time (with icon) + Tentative status */}
+        {/* Line 1: Calendar icon + Date + Clock icon + Time + Tentative */}
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
           <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
           <span>
@@ -91,61 +78,41 @@ export function EventCard({ event, onClick }: EventCardProps) {
               : formatDate(event.startDate)}
           </span>
           
-          {!event.isAllDay && (
-            <>
-              <Clock className="w-3.5 h-3.5 flex-shrink-0 ml-1" />
-              <span>
-                {formatTime(event.startDate)} - {formatTime(event.endDate)}
-              </span>
-            </>
-          )}
-          {event.isAllDay && (
-            <>
-              <Clock className="w-3.5 h-3.5 flex-shrink-0 ml-1" />
-              <span>All day</span>
-            </>
+          <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+          {!event.isAllDay ? (
+            <span>
+              {formatTime(event.startDate)} - {formatTime(event.endDate)}
+            </span>
+          ) : (
+            <span>All day</span>
           )}
           
           {event.isTentative && (
             <>
-              <span className="ml-1">•</span>
+              <span>•</span>
               <span className="text-amber-500 italic">Tentative</span>
             </>
           )}
         </div>
 
-        {/* Line 2: Attendee/Viewer status + Location + Creator */}
-        <div className="flex items-center gap-1.5 text-xs flex-wrap">
-          {userStatus && (
-            <>
-              <div className={cn("flex items-center gap-1", userStatus.color)}>
-                <userStatus.icon className="w-3.5 h-3.5" />
-                <span>{userStatus.text}</span>
-              </div>
-              <span className="text-muted-foreground">•</span>
-            </>
-          )}
-          
+        {/* Line 2: Location (MapPin icon) + Creator (color dot) */}
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
           {event.location && (
             <>
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <MapPin className="w-3.5 h-3.5" />
-                <span className="truncate max-w-[120px]">{event.location}</span>
-              </div>
-              <span className="text-muted-foreground">•</span>
+              <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="truncate max-w-[150px]">{event.location}</span>
+              <span>•</span>
             </>
           )}
           
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <div
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: event.color }}
-            />
-            <span>{event.creatorName || creator?.name || 'Unknown'}</span>
-          </div>
+          <div
+            className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{ backgroundColor: event.color }}
+          />
+          <span>{event.creatorName || creator?.name || 'Unknown'}</span>
         </div>
 
-        {/* Line 3: Recurring info (icon + details) + URL + First line of description/note */}
+        {/* Line 3: Recurring icon + URL (Link icon) + First line of description */}
         {(event.recurrence || event.url || firstLineDescription) && (
           <div className="flex items-start gap-1.5 text-xs text-muted-foreground flex-wrap">
             {event.recurrence && (
@@ -162,7 +129,7 @@ export function EventCard({ event, onClick }: EventCardProps) {
             {event.url && (
               <>
                 <Link className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                <span className="truncate max-w-[150px]">{event.url}</span>
+                <span className="truncate max-w-[180px]">{event.url}</span>
               </>
             )}
             
