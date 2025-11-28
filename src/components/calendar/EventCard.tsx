@@ -9,17 +9,6 @@ interface EventCardProps {
 }
 
 export function EventCard({ event, onClick }: EventCardProps) {
-  // Debug: Log event data to see what fields we're receiving
-  console.log('EventCard received event:', {
-    title: event.title,
-    location: event.location,
-    url: event.url,
-    isTentative: event.isTentative,
-    isViewer: event.isViewer,
-    attendeeIds: event.attendeeIds,
-    viewerIds: event.viewerIds,
-  });
-
   const creator = getUserById(event.userId);
   const attendees = getUsersByIds(event.attendeeIds);
   const viewers = getUsersByIds(event.viewerIds || []);
