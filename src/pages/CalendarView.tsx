@@ -239,7 +239,7 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
               endDate: e.recurrence_end_date ? new Date(e.recurrence_end_date) : undefined,
               daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
             } : undefined,
-          })))}
+          }))}
           selectedDate={selectedDate}
           onDateSelect={handleDateSelect}
         />
