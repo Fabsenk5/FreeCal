@@ -13,6 +13,12 @@ export function EventCard({ event, onClick }: EventCardProps) {
   const attendees = getUsersByIds(event.attendeeIds);
   const viewers = getUsersByIds(event.viewerIds || []);
 
+  // Check if event has relationship attendees (not self)
+  const hasRelationshipAttendees = attendees.some(attendee => attendee.relationshipType !== 'self');
+  
+  // Use gold color if event has relationship attendees
+  const eventColor = hasRelationshipAttendees ? 'hsl(45, 90%, 55%)' : event.color;
+
   // Check if event spans multiple days
   const startDate = new Date(event.startDate);
   const endDate = new Date(event.endDate);
@@ -67,8 +73,8 @@ export function EventCard({ event, onClick }: EventCardProps) {
         'w-full text-left p-3 rounded-lg border-l-4 transition-all hover:scale-[1.02] active:scale-[0.98] text-foreground'
       )}
       style={{
-        backgroundColor: getBackgroundColor(event.color, event.isViewer),
-        borderColor: event.color,
+        backgroundColor: getBackgroundColor(eventColor, event.isViewer),
+        borderColor: eventColor,
         transition: 'var(--transition-smooth)'
       }}
     >
@@ -124,7 +130,7 @@ export function EventCard({ event, onClick }: EventCardProps) {
           
           <div
             className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{ backgroundColor: event.color }}
+            style={{ backgroundColor: eventColor }}
           />
           <span>{event.creatorName || creator?.name || 'Unknown'}</span>
         </div>
