@@ -152,6 +152,10 @@
     --free-time: 142 71% 45%;
     --free-time-foreground: 210 40% 98%;
     
+    /* Relationship Event Color */
+    --relationship-event: 45 90% 55%;
+    --relationship-event-foreground: 210 40% 98%;
+    
     /* Calendar Tokens */
     --calendar-today: 217 91% 60%;
     --calendar-selected: 217 91% 60%;

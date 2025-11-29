@@ -1,4 +1,4 @@
-import { CalendarEvent } from '@/data/mockData';
+import { CalendarEvent, getUsersByIds } from '@/data/mockData';
 import { getCalendarDays, getWeekDays, isSameDay, isToday } from '@/utils/dateUtils';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +34,13 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect }: M
       // Event is on this date if the date falls between start and end (inclusive)
       return checkDate >= eventStart && checkDate <= eventEnd;
     });
+  };
+
+  // Get event color - gold if has relationship attendees
+  const getEventColor = (event: CalendarEvent): string => {
+    const attendees = getUsersByIds(event.attendeeIds);
+    const hasRelationshipAttendees = attendees.some(attendee => attendee.relationshipType !== 'self');
+    return hasRelationshipAttendees ? 'hsl(45, 90%, 55%)' : event.color;
   };
 
   return (
@@ -88,7 +95,7 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect }: M
                         isSelected && 'opacity-80'
                       )}
                       style={{ 
-                        backgroundColor: isSelected ? '#ffffff' : event.color 
+                        backgroundColor: isSelected ? '#ffffff' : getEventColor(event)
                       }}
                     />
                   ))}
