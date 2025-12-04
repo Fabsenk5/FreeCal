@@ -15,9 +15,12 @@ export function EventCard({ event, onClick }: EventCardProps) {
 
   // Check if event has relationship attendees (not self)
   const hasRelationshipAttendees = attendees.some(attendee => attendee.relationshipType !== 'self');
-  
-  // Use gold color if event has relationship attendees
-  const eventColor = hasRelationshipAttendees ? 'hsl(45, 90%, 55%)' : event.color;
+
+  // Use gold color for background if event has relationship attendees
+  const backgroundColor = hasRelationshipAttendees ? 'hsl(45, 90%, 55%)' : event.color;
+
+  // Keep original event color for border and dot
+  const eventColor = event.color;
 
   // Check if event spans multiple days
   const startDate = new Date(event.startDate);
@@ -40,19 +43,19 @@ export function EventCard({ event, onClick }: EventCardProps) {
   // Format recurrence info in lean text
   const getRecurrenceText = () => {
     if (!event.recurrence) return null;
-    
+
     const { frequency, endDate, daysOfWeek } = event.recurrence;
-    
+
     let freqText = frequency.charAt(0).toUpperCase() + frequency.slice(1);
     if (daysOfWeek && daysOfWeek.length > 0) {
       const days = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
       freqText = daysOfWeek.map(d => days[d]).join(', ');
     }
-    
+
     if (endDate) {
       return `${freqText} until ${formatDate(endDate)}`;
     }
-    
+
     return freqText;
   };
 
@@ -73,8 +76,8 @@ export function EventCard({ event, onClick }: EventCardProps) {
         'w-full text-left p-3 rounded-lg border-l-4 transition-all hover:scale-[1.02] active:scale-[0.98] text-foreground'
       )}
       style={{
-        backgroundColor: getBackgroundColor(eventColor, event.isViewer),
-        borderColor: eventColor,
+        backgroundColor: event.color,
+        borderColor: event.color,
         transition: 'var(--transition-smooth)'
       }}
     >
@@ -90,7 +93,7 @@ export function EventCard({ event, onClick }: EventCardProps) {
               ? `${formatDate(event.startDate)} - ${formatDate(event.endDate)}`
               : formatDate(event.startDate)}
           </span>
-          
+
           <Clock className="w-3.5 h-3.5 flex-shrink-0" />
           {!event.isAllDay ? (
             <span>
@@ -99,7 +102,7 @@ export function EventCard({ event, onClick }: EventCardProps) {
           ) : (
             <span>All day</span>
           )}
-          
+
           {event.isTentative && (
             <>
               <span>•</span>
@@ -119,7 +122,7 @@ export function EventCard({ event, onClick }: EventCardProps) {
               <span>•</span>
             </>
           )}
-          
+
           {event.location && (
             <>
               <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
@@ -127,10 +130,10 @@ export function EventCard({ event, onClick }: EventCardProps) {
               <span>•</span>
             </>
           )}
-          
+
           <div
             className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{ backgroundColor: eventColor }}
+            style={{ backgroundColor: event.color }}
           />
           <span>{event.creatorName || creator?.name || 'Unknown'}</span>
         </div>
@@ -144,22 +147,22 @@ export function EventCard({ event, onClick }: EventCardProps) {
                 <span className="flex-shrink-0">{getRecurrenceText()}</span>
               </>
             )}
-            
+
             {event.recurrence && (event.url || firstLineDescription) && (
               <span>•</span>
             )}
-            
+
             {event.url && (
               <>
                 <Link className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                 <span className="truncate max-w-[180px]">{event.url}</span>
               </>
             )}
-            
+
             {event.url && firstLineDescription && (
               <span>•</span>
             )}
-            
+
             {firstLineDescription && (
               <span className="line-clamp-1 flex-1">{firstLineDescription}</span>
             )}
