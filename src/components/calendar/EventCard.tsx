@@ -13,8 +13,8 @@ export function EventCard({ event, onClick }: EventCardProps) {
   const attendees = getUsersByIds(event.attendeeIds);
   const viewers = getUsersByIds(event.viewerIds || []);
 
-  // Check if event has relationship attendees (not self)
-  const hasRelationshipAttendees = attendees.some(attendee => attendee.relationshipType !== 'self');
+  // Check if event has relationship attendees (attendees other than the creator)
+  const hasRelationshipAttendees = event.attendeeIds.some(attendeeId => attendeeId !== event.userId);
 
   // Use gold color for background if event has relationship attendees
   const backgroundColor = hasRelationshipAttendees ? 'hsl(45, 90%, 55%)' : event.color;
