@@ -1,4 +1,4 @@
-import { CalendarEvent, getUsersByIds } from '@/data/mockData';
+import { CalendarEvent } from '@/data/mockData';
 import { getCalendarDays, getWeekDays, isSameDay, isToday } from '@/utils/dateUtils';
 import { cn } from '@/lib/utils';
 
@@ -38,8 +38,7 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect }: M
 
   // Get event color - gold if has relationship attendees
   const getEventColor = (event: CalendarEvent): string => {
-    const attendees = getUsersByIds(event.attendeeIds);
-    const hasRelationshipAttendees = attendees.some(attendee => attendee.relationshipType !== 'self');
+    const hasRelationshipAttendees = event.attendeeIds.some(attendeeId => attendeeId !== event.userId);
     return hasRelationshipAttendees ? 'hsl(45, 90%, 55%)' : event.color;
   };
 
