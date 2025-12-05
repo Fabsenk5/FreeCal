@@ -76,8 +76,8 @@ export function EventCard({ event, onClick }: EventCardProps) {
         'w-full text-left p-3 rounded-lg border-l-4 transition-all hover:scale-[1.02] active:scale-[0.98] text-foreground'
       )}
       style={{
-        backgroundColor: event.color,
-        borderColor: event.color,
+        backgroundColor: getBackgroundColor(backgroundColor, event.isViewer),
+        borderColor: eventColor,
         transition: 'var(--transition-smooth)'
       }}
     >
