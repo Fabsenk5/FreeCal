@@ -27,6 +27,9 @@ export function FreeTimeFinderV2() {
     const { relationships, loading: relLoading } = useRelationships();
     const { profile, user } = useAuth();
 
+    // Define loading status early to avoid TDZ in useMemo
+    const loading = eventsLoading || relLoading;
+
     const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
     const [selectedDay, setSelectedDay] = useState<DayAvailability | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -169,8 +172,6 @@ export function FreeTimeFinderV2() {
         // We need to tell Index to open 'create' tab.
         localStorage.setItem('activeTab', 'create'); // Maybe Index reads this?
     };
-
-    const loading = eventsLoading || relLoading;
 
     if (loading) {
         return (
