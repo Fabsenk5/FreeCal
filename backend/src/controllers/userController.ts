@@ -75,11 +75,19 @@ const isAdmin = async (userId: string) => {
 };
 
 export const getAllUsers = async (req: Request & { user?: any }, res: Response) => {
+    console.log('API: getAllUsers calling...');
     if (!req.user) return res.sendStatus(401);
-    if (!(await isAdmin(req.user.id))) return res.sendStatus(403);
+
+    // Debug: check logic
+    const adminCheck = await isAdmin(req.user.id);
+    console.log('API: getAllUsers isAdmin?', adminCheck, req.user.id);
+
+    if (!adminCheck) return res.sendStatus(403);
 
     try {
+        console.log('API: getAllUsers fetching profiles from DB...');
         const allProfiles = await db.select().from(profiles);
+        console.log(`API: getAllUsers found ${allProfiles.length} profiles`);
         const mapped = allProfiles.map(p => ({
             ...p,
             display_name: p.displayName,

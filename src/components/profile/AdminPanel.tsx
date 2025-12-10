@@ -49,7 +49,30 @@ export function AdminPanel() {
   const [newPassword, setNewPassword] = useState('');
   const [processing, setProcessing] = useState(false);
 
-  // ... (existing useEffect and fetchUsers)
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    console.log('AdminPanel: Starting fetchUsers...');
+    setLoading(true);
+    try {
+      console.log('AdminPanel: Calling API /admin/users');
+      const { data } = await api.get('/admin/users');
+      console.log('AdminPanel: API Response received', data);
+
+      // data is array of all users
+      setPendingUsers(data.filter((u: any) => u.approval_status === 'pending'));
+      setApprovedUsers(data.filter((u: any) => u.approval_status === 'approved'));
+      setRejectedUsers(data.filter((u: any) => u.approval_status === 'rejected'));
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('Failed to load users');
+    } finally {
+      console.log('AdminPanel: Setting loading to false');
+      setLoading(false);
+    }
+  };
 
   const handleAction = async () => {
     if (!actionDialog.userId || !actionDialog.action || !user) return;
