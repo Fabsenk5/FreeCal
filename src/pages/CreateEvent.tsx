@@ -48,6 +48,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showScreenshotDialog, setShowScreenshotDialog] = useState(false);
   const [sharingStatus, setSharingStatus] = useState<Record<string, 'attendee' | 'viewer' | 'none'>>({});
+  const [attendeeStatuses, setAttendeeStatuses] = useState<Record<string, string>>({});
 
   // Convert 12-hour time format to 24-hour
   const convertTo24Hour = (time12: string): string => {
@@ -90,10 +91,17 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       setViewers(eventToEdit.viewers || []);
 
       // Build unified sharing status from attendees and viewers
-      const status = {};
+      const status: Record<string, 'attendee' | 'viewer' | 'none'> = {};
       (eventToEdit.attendees || []).forEach(id => { status[id] = 'attendee'; });
       (eventToEdit.viewers || []).forEach(id => { status[id] = 'viewer'; });
       setSharingStatus(status);
+
+      // Load attendee statuses
+      const statuses: Record<string, string> = {};
+      (eventToEdit.attendees_details || []).forEach(d => {
+        statuses[d.userId] = d.status;
+      });
+      setAttendeeStatuses(statuses);
 
       setEventColor(eventToEdit.color || eventToEdit.creator_color || profile?.calendar_color || 'hsl(217, 91%, 60%)');
       setNotes(eventToEdit.description || '');

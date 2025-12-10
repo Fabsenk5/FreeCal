@@ -41,9 +41,10 @@ export const getEvents = async (req: Request & { user?: any }, res: Response) =>
             // Fetch Creator
             const [creator] = await db.select().from(profiles).where(eq(profiles.id, event.userId));
 
-            // Fetch Attendees
-            const attendees = await db.select().from(eventAttendees).where(eq(eventAttendees.eventId, event.id));
-            const attendeeIds = attendees.map(a => a.userId);
+            // Fetch Attendees with Status
+            const attendeesList = await db.select().from(eventAttendees).where(eq(eventAttendees.eventId, event.id));
+            const attendeeIds = attendeesList.map(a => a.userId);
+            const attendeesWithStatus = attendeesList.map(a => ({ userId: a.userId, status: a.status }));
 
             // Fetch Viewers
             const viewers = await db.select().from(eventViewers).where(eq(eventViewers.eventId, event.id));
@@ -55,11 +56,6 @@ export const getEvents = async (req: Request & { user?: any }, res: Response) =>
 
             return {
                 ...event,
-                // Drizzle types are camelCase automatically if not specified otherwise? 
-                // In schema.ts I defined columns like: userId: uuid('user_id'). 
-                // Drizzle returns 'userId'. Frontend expects 'user_id' (from Supabase types).
-                // I MUST MAP THESE.
-
                 user_id: event.userId,
                 title: event.title,
                 description: event.description,
@@ -79,7 +75,8 @@ export const getEvents = async (req: Request & { user?: any }, res: Response) =>
                 alerts: event.alerts,
                 travel_time: event.travelTime,
                 original_calendar_id: event.originalCalendarId,
-                attendees: attendeeIds, // Override expected structure
+                attendees: attendeeIds,
+                attendees_details: attendeesWithStatus, // New field
                 viewers: viewerIds,
                 creator_name: creator?.displayName,
                 creator_color: creator?.calendarColor,
@@ -132,7 +129,7 @@ export const createEvent = async (req: Request & { user?: any }, res: Response) 
         // Transactional-like inserts for attendees/viewers
         if (attendees.length > 0) {
             await db.insert(eventAttendees).values(
-                attendees.map(aId => ({ eventId: newEvent.id, userId: aId }))
+                attendees.map(aId => ({ eventId: newEvent.id, userId: aId, status: 'pending' as const }))
             );
         }
 
@@ -148,6 +145,7 @@ export const createEvent = async (req: Request & { user?: any }, res: Response) 
             start_time: newEvent.startTime.toISOString(),
             end_time: newEvent.endTime.toISOString(),
             attendees,
+            attendees_details: attendees.map(id => ({ userId: id, status: 'pending' })),
             viewers
         });
     } catch (error) {
@@ -246,3 +244,38 @@ export const deleteEvent = async (req: Request & { user?: any }, res: Response) 
         res.status(500).json({ message: 'Error deleting event', error });
     }
 }
+
+export const respondToInvite = async (req: Request & { user?: any }, res: Response) => {
+    if (!req.user) return res.sendStatus(401);
+    const { id } = req.params; // Event ID
+    const { status } = req.body; // 'accepted' | 'declined'
+
+    if (!['accepted', 'declined'].includes(status)) {
+        return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    try {
+        // Verify user is invited
+        // Use raw SQL to check existing record with logic (eventId + userId)
+        // Drizzle eq helper is better if imported.
+        // We imported 'eq' and 'sql' at the top.
+
+        const [existing] = await db.select().from(eventAttendees)
+            .where(sql`${eventAttendees.eventId} = ${id} AND ${eventAttendees.userId} = ${req.user.id}`);
+
+        if (!existing) {
+            return res.status(404).json({ message: 'Invitation not found' });
+        }
+
+        // Update status
+        await db.update(eventAttendees)
+            .set({ status: status as 'accepted' | 'declined' })
+            .where(sql`${eventAttendees.eventId} = ${id} AND ${eventAttendees.userId} = ${req.user.id}`);
+
+        res.json({ message: `Invitation ${status}` });
+
+    } catch (error) {
+        console.error('Respond Invite Error:', error);
+        res.status(500).json({ message: 'Error responding to invite', error });
+    }
+};

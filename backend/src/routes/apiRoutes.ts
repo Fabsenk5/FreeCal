@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getEvents, createEvent, updateEvent, deleteEvent } from '../controllers/eventController';
+import { getEvents, createEvent, updateEvent, deleteEvent, respondToInvite } from '../controllers/eventController';
 import { getRelationships, createRelationship, updateRelationship, deleteRelationship } from '../controllers/relationshipController';
 import { authenticateToken } from '../middleware/auth';
 
@@ -13,6 +13,7 @@ router.get('/events', getEvents);
 router.post('/events', createEvent);
 router.put('/events/:id', updateEvent);
 router.delete('/events/:id', deleteEvent);
+router.put('/events/:id/respond', respondToInvite);
 
 // Relationships
 router.get('/relationships', getRelationships);

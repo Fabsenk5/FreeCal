@@ -189,78 +189,78 @@ export function FreeTimeFinder() {
    */
   const mergeConsecutiveSlots = (slots: FreeTimeSlot[]): FreeTimeSlot[] => {
     if (slots.length === 0) return [];
-    
+
     // Sort slots by start time first
     const sorted = [...slots].sort((a, b) => {
       const aDate = new Date(a.date);
       const bDate = new Date(b.date);
-      
+
       // Parse start times
       const aTime = a.startTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
       const bTime = b.startTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
-      
+
       if (!aTime || !bTime) return 0;
-      
+
       let aHours = parseInt(aTime[1]);
       let bHours = parseInt(bTime[1]);
       const aMinutes = parseInt(aTime[2]);
       const bMinutes = parseInt(bTime[2]);
       const aPeriod = aTime[3].toUpperCase();
       const bPeriod = bTime[3].toUpperCase();
-      
+
       // Convert to 24-hour format
       if (aPeriod === 'PM' && aHours !== 12) aHours += 12;
       if (aPeriod === 'AM' && aHours === 12) aHours = 0;
       if (bPeriod === 'PM' && bHours !== 12) bHours += 12;
       if (bPeriod === 'AM' && bHours === 12) bHours = 0;
-      
+
       aDate.setHours(aHours, aMinutes);
       bDate.setHours(bHours, bMinutes);
-      
+
       return aDate.getTime() - bDate.getTime();
     });
-    
+
     const merged: FreeTimeSlot[] = [];
     let current = { ...sorted[0] };
-    
+
     for (let i = 1; i < sorted.length; i++) {
       const next = sorted[i];
-      
+
       // Check if slots are consecutive (next starts when current ends)
       // and on the same or adjacent days
       const currentDateEnd = new Date(current.date);
       const nextDateStart = new Date(next.date);
-      
+
       // Parse end time of current slot
       const currentEndTime = current.endTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
       const nextStartTime = next.startTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
-      
+
       if (!currentEndTime || !nextStartTime) {
         merged.push(current);
         current = { ...next };
         continue;
       }
-      
+
       let currentEndHours = parseInt(currentEndTime[1]);
       let nextStartHours = parseInt(nextStartTime[1]);
       const currentEndMinutes = parseInt(currentEndTime[2]);
       const nextStartMinutes = parseInt(nextStartTime[2]);
       const currentEndPeriod = currentEndTime[3].toUpperCase();
       const nextStartPeriod = nextStartTime[3].toUpperCase();
-      
+
       // Convert to 24-hour format
       if (currentEndPeriod === 'PM' && currentEndHours !== 12) currentEndHours += 12;
       if (currentEndPeriod === 'AM' && currentEndHours === 12) currentEndHours = 0;
       if (nextStartPeriod === 'PM' && nextStartHours !== 12) nextStartHours += 12;
       if (nextStartPeriod === 'AM' && nextStartHours === 12) nextStartHours = 0;
-      
+
       currentDateEnd.setHours(currentEndHours, currentEndMinutes);
       nextDateStart.setHours(nextStartHours, nextStartMinutes);
-      
+
       // Check if slots are consecutive (within 1 day and times match)
       const timeDiff = nextDateStart.getTime() - currentDateEnd.getTime();
       const isConsecutive = timeDiff === 0;
-      
+
       if (isConsecutive) {
         // Merge: extend current slot's end time
         current.endTime = next.endTime;
@@ -271,10 +271,10 @@ export function FreeTimeFinder() {
         current = { ...next };
       }
     }
-    
+
     // Don't forget the last slot
     merged.push(current);
-    
+
     return merged;
   };
 
@@ -294,13 +294,13 @@ export function FreeTimeFinder() {
     const days = Math.floor(minutes / 1440);  // 1440 min = 24h
     const hours = Math.floor((minutes % 1440) / 60);
     const mins = minutes % 60;
-    
+
     const parts: string[] = [];
-    
+
     if (days > 0) parts.push(`${days}d`);
     if (hours > 0) parts.push(`${hours}h`);
     if (mins > 0) parts.push(`${mins}min`);
-    
+
     return parts.join(' ') || '0min';
   };
 
@@ -454,29 +454,39 @@ export function FreeTimeFinder() {
       <MobileHeader
         title="Free Time Finder"
         rightAction={
-          <div className="flex gap-1 bg-muted rounded-lg p-0.5">
-            <button
-              onClick={() => setViewMode('calendar')}
-              className={cn(
-                'p-2 rounded-md transition-all',
-                viewMode === 'calendar'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground'
-              )}
+          <div className="flex gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => window.location.href = '/free-time-v2'}
+              className="text-xs h-8 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 border-0"
             >
-              <CalendarIcon className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={cn(
-                'p-2 rounded-md transition-all',
-                viewMode === 'list'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground'
-              )}
-            >
-              <List className="w-4 h-4" />
-            </button>
+              Try v2 ✨
+            </Button>
+            <div className="flex gap-1 bg-muted rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode('calendar')}
+                className={cn(
+                  'p-2 rounded-md transition-all',
+                  viewMode === 'calendar'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground'
+                )}
+              >
+                <CalendarIcon className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={cn(
+                  'p-2 rounded-md transition-all',
+                  viewMode === 'list'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground'
+                )}
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         }
       />
@@ -509,10 +519,10 @@ export function FreeTimeFinder() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </div >
 
             {/* Year - Right */}
-            <div className="space-y-2">
+            < div className="space-y-2" >
               <Label>Year</Label>
               <Select
                 value={selectedYear.toString()}
@@ -532,11 +542,11 @@ export function FreeTimeFinder() {
                   <SelectItem value="2027">2027</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-          </div>
+            </div >
+          </div >
 
           {/* Time Frame Selection - NEW DUAL SLIDER */}
-          <div className="space-y-2">
+          < div className="space-y-2" >
             <DualTimeSlider
               value={timeFrame}
               onChange={setTimeFrame}
@@ -545,10 +555,10 @@ export function FreeTimeFinder() {
             <p className="text-xs text-muted-foreground">
               {spansIntoDay2 ? 'Spans into Day 2' : 'Day 1 time frame only'}
             </p>
-          </div>
+          </div >
 
           {/* Day Range Slider */}
-          <div className="space-y-3">
+          < div className="space-y-3" >
             <div className="flex items-center justify-between">
               <Label>Day Range</Label>
               <span className="text-xs text-muted-foreground">
@@ -567,10 +577,10 @@ export function FreeTimeFinder() {
               <span>Day {dayRange[0]}</span>
               <span>Day {dayRange[1]}</span>
             </div>
-          </div>
+          </div >
 
           {/* User selection */}
-          <div className="space-y-2">
+          < div className="space-y-2" >
             <Label>Check availability for</Label>
             <div className="space-y-2">
               {/* Current user */}
@@ -624,11 +634,11 @@ export function FreeTimeFinder() {
                 </p>
               )}
             </div>
-          </div>
-        </div>
+          </div >
+        </div >
 
         {/* Results */}
-        <div className="mt-6">
+        < div className="mt-6" >
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold">Available Time</h2>
             <span className="text-xs text-muted-foreground">
@@ -636,163 +646,165 @@ export function FreeTimeFinder() {
             </span>
           </div>
 
-          {viewMode === 'calendar' ? (
-            <div className="bg-card rounded-xl p-4 shadow-sm">
-              {/* Week day headers */}
-              <div className="grid grid-cols-7 gap-1 mb-3">
-                {weekDays.map((day) => (
-                  <div
-                    key={day}
-                    className="text-center text-xs font-medium text-muted-foreground py-2"
-                  >
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              {/* Calendar grid */}
-              <div className="grid grid-cols-7 gap-1">
-                {days.map((date, index) => {
-                  if (!date) {
-                    return <div key={`empty-${index}`} className="aspect-square" />;
-                  }
-
-                  const dayOfMonth = date.getDate();
-                  const isInRange = dayOfMonth >= dayRange[0] && dayOfMonth <= dayRange[1];
-                  const isFree = isDateFree(date);
-                  const isToday =
-                    date.getDate() === new Date().getDate() &&
-                    date.getMonth() === new Date().getMonth();
-
-                  return (
+          {
+            viewMode === 'calendar' ? (
+              <div className="bg-card rounded-xl p-4 shadow-sm">
+                {/* Week day headers */}
+                <div className="grid grid-cols-7 gap-1 mb-3">
+                  {weekDays.map((day) => (
                     <div
-                      key={date.toISOString()}
-                      className={cn(
-                        'aspect-square rounded-lg p-1 flex items-center justify-center transition-all relative text-sm font-medium',
-                        isFree && isInRange &&
-                          'bg-[hsl(var(--free-time)_/_0.2)] text-[hsl(var(--free-time))]',
-                        (!isFree || !isInRange) && 'text-muted-foreground',
-                        !isInRange && 'opacity-30',
-                        isToday && 'border-2 border-primary'
-                      )}
+                      key={day}
+                      className="text-center text-xs font-medium text-muted-foreground py-2"
                     >
-                      {date.getDate()}
+                      {day}
                     </div>
-                  );
-                })}
-              </div>
-
-              {/* Legend */}
-              <div className="mt-4 pt-4 border-t border-border">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-[hsl(var(--free-time)_/_0.2)]" />
-                  <span className="text-xs text-muted-foreground">Available</span>
+                  ))}
                 </div>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {consolidatedFreeTimeSlots.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 px-4">
-                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3">
-                    <span className="text-3xl">🗓️</span>
+
+                {/* Calendar grid */}
+                <div className="grid grid-cols-7 gap-1">
+                  {days.map((date, index) => {
+                    if (!date) {
+                      return <div key={`empty-${index}`} className="aspect-square" />;
+                    }
+
+                    const dayOfMonth = date.getDate();
+                    const isInRange = dayOfMonth >= dayRange[0] && dayOfMonth <= dayRange[1];
+                    const isFree = isDateFree(date);
+                    const isToday =
+                      date.getDate() === new Date().getDate() &&
+                      date.getMonth() === new Date().getMonth();
+
+                    return (
+                      <div
+                        key={date.toISOString()}
+                        className={cn(
+                          'aspect-square rounded-lg p-1 flex items-center justify-center transition-all relative text-sm font-medium',
+                          isFree && isInRange &&
+                          'bg-[hsl(var(--free-time)_/_0.2)] text-[hsl(var(--free-time))]',
+                          (!isFree || !isInRange) && 'text-muted-foreground',
+                          !isInRange && 'opacity-30',
+                          isToday && 'border-2 border-primary'
+                        )}
+                      >
+                        {date.getDate()}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Legend */}
+                <div className="mt-4 pt-4 border-t border-border">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-[hsl(var(--free-time)_/_0.2)]" />
+                    <span className="text-xs text-muted-foreground">Available</span>
                   </div>
-                  <p className="text-sm font-medium text-foreground mb-1">
-                    No free time found
-                  </p>
-                  <p className="text-xs text-muted-foreground text-center">
-                    {selectedUsers.length === 0
-                      ? 'Select users to check availability'
-                      : 'Try selecting different users or a different month'}
-                  </p>
                 </div>
-              ) : (
-                Object.entries(groupedSlots).map(([dateKey, slots]) => (
-                  <div key={dateKey} className="space-y-2">
-                    {/* Date header - sticky */}
-                    <div className="sticky top-0 bg-background/95 backdrop-blur-sm py-2 z-10">
-                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        {formatDate(new Date(dateKey))}
-                      </h3>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {consolidatedFreeTimeSlots.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 px-4">
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3">
+                      <span className="text-3xl">🗓️</span>
                     </div>
+                    <p className="text-sm font-medium text-foreground mb-1">
+                      No free time found
+                    </p>
+                    <p className="text-xs text-muted-foreground text-center">
+                      {selectedUsers.length === 0
+                        ? 'Select users to check availability'
+                        : 'Try selecting different users or a different month'}
+                    </p>
+                  </div>
+                ) : (
+                  Object.entries(groupedSlots).map(([dateKey, slots]) => (
+                    <div key={dateKey} className="space-y-2">
+                      {/* Date header - sticky */}
+                      <div className="sticky top-0 bg-background/95 backdrop-blur-sm py-2 z-10">
+                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          {formatDate(new Date(dateKey))}
+                        </h3>
+                      </div>
 
-                    {/* Slots for this date */}
-                    <div className="space-y-2">
-                      {slots.map((slot, index) => (
-                        <div
-                          key={index}
-                          className={cn(
-                            'bg-card rounded-lg p-4 hover:bg-accent transition-colors border-l-4',
-                            slot.type === 'daytime' ? 'border-green-500' : 'border-blue-500'
-                          )}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3 flex-1">
-                              {/* Icon */}
-                              <div
-                                className={cn(
-                                  'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
-                                  slot.type === 'daytime'
-                                    ? 'bg-green-500/10'
-                                    : 'bg-blue-500/10'
-                                )}
-                              >
-                                {slot.type === 'daytime' ? (
-                                  <Sun className="w-4 h-4 text-green-500" />
-                                ) : (
-                                  <Moon className="w-4 h-4 text-blue-500" />
-                                )}
-                              </div>
-
-                              {/* Time info */}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-sm font-semibold">
-                                    {slot.startTime} - {slot.endTime}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground">
-                                    ({formatDuration(slot.duration)})
-                                  </span>
+                      {/* Slots for this date */}
+                      <div className="space-y-2">
+                        {slots.map((slot, index) => (
+                          <div
+                            key={index}
+                            className={cn(
+                              'bg-card rounded-lg p-4 hover:bg-accent transition-colors border-l-4',
+                              slot.type === 'daytime' ? 'border-green-500' : 'border-blue-500'
+                            )}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3 flex-1">
+                                {/* Icon */}
+                                <div
+                                  className={cn(
+                                    'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
+                                    slot.type === 'daytime'
+                                      ? 'bg-green-500/10'
+                                      : 'bg-blue-500/10'
+                                  )}
+                                >
+                                  {slot.type === 'daytime' ? (
+                                    <Sun className="w-4 h-4 text-green-500" />
+                                  ) : (
+                                    <Moon className="w-4 h-4 text-blue-500" />
+                                  )}
                                 </div>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {slot.type === 'daytime'
-                                    ? 'Daytime slot'
-                                    : 'Overnight suggestion'}
-                                </p>
-                              </div>
-                            </div>
 
-                            {/* Create button */}
-                            <Button
-                              size="sm"
-                              onClick={() => handleCreateFromSlot(slot)}
-                              className="flex-shrink-0"
-                            >
-                              Create
-                            </Button>
+                                {/* Time info */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-sm font-semibold">
+                                      {slot.startTime} - {slot.endTime}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      ({formatDuration(slot.duration)})
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {slot.type === 'daytime'
+                                      ? 'Daytime slot'
+                                      : 'Overnight suggestion'}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Create button */}
+                              <Button
+                                size="sm"
+                                onClick={() => handleCreateFromSlot(slot)}
+                                className="flex-shrink-0"
+                              >
+                                Create
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
+                  ))
+                )}
+              </div>
+            )
+          }
+        </div >
 
         {/* Info card */}
-        <div className="mt-6 bg-muted/50 rounded-xl p-4">
+        < div className="mt-6 bg-muted/50 rounded-xl p-4" >
           <h3 className="text-sm font-semibold mb-2">💡 How it works</h3>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Free Time Finder shows available time slots when all selected people are free within 
-            your chosen time frame. Select a start and end time (can span up to 48 hours, including 
-            overnight). Use the day range slider to filter specific dates within the month. 
-            Available slots are shown in 30-minute increments. Click "Create" to quickly schedule 
+            Free Time Finder shows available time slots when all selected people are free within
+            your chosen time frame. Select a start and end time (can span up to 48 hours, including
+            overnight). Use the day range slider to filter specific dates within the month.
+            Available slots are shown in 30-minute increments. Click "Create" to quickly schedule
             an event during a free slot.
           </p>
-        </div>
-      </div>
-    </div>
+        </div >
+      </div >
+    </div >
   );
 }

@@ -7,6 +7,7 @@ import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import { HealthCheck } from '@/pages/HealthCheck';
 import { PendingApproval } from '@/pages/PendingApproval';
+import { FreeTimeFinderV2 } from '@/pages/FreeTimeFinderV2';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 const routes = [
@@ -40,6 +41,14 @@ const routes = [
       {
         path: "pending-approval",
         element: <PendingApproval />,
+      },
+      {
+        path: "free-time-v2",
+        element: (
+          <ProtectedRoute>
+            <FreeTimeFinderV2 />
+          </ProtectedRoute>
+        ),
       },
       {
         path: "health",

@@ -25,6 +25,9 @@ export interface CalendarEvent {
   };
   color: string; // Changed to string to support actual HSL colors
   creatorName?: string; // Added to display creator name
+  location?: string;
+  url?: string;
+  isTentative?: boolean;
 }
 
 export const MOCK_USERS: User[] = [

@@ -64,6 +64,7 @@ export const eventAttendees = pgTable('event_attendees', {
     id: uuid('id').primaryKey().defaultRandom(),
     eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
     userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: ['pending', 'accepted', 'declined'] }).default('pending'),
     isAttendee: boolean('is_attendee').default(true), // Added from recent checklist
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (t) => ({

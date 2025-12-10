@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
+import { InviteInbox } from '@/components/notifications/InviteInbox';
 import { MonthView } from '@/components/calendar/MonthView';
 import { EventList } from '@/components/calendar/EventList';
-import { useEvents, EventWithAttendees } from '@/hooks/useEvents';
+import { useEvents } from '@/hooks/useEvents';
 import { useRelationships } from '@/hooks/useRelationships';
 import { getMonthName } from '@/utils/dateUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EventCard } from '@/components/calendar/EventCard';
 import { Button } from '@/components/ui/button';
-import { api } from '@/lib/api';
+import { api, EventWithAttendees } from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -114,6 +115,7 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
         title="FreeCal"
         rightAction={
           <div className="flex items-center gap-3">
+            <InviteInbox />
             {/* Color legend - compact */}
             <div className="flex items-center gap-2">
               {profile && (
