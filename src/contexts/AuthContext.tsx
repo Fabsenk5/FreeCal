@@ -118,7 +118,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       toast.success('Welcome back!');
     } catch (err: any) {
       console.error('Sign in error:', err);
-      toast.error(err.response?.data?.message || 'Failed to sign in');
+      // Show technical error in toast (bottom right) as requested
+      toast.error(err.message || 'Failed to sign in');
       throw err;
     }
   };
