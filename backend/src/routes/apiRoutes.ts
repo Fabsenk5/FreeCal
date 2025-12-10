@@ -22,7 +22,7 @@ router.put('/relationships/:id', updateRelationship);
 router.delete('/relationships/:id', deleteRelationship);
 
 // Users (Profile & Search)
-import { updateProfile, searchUsers, getAllUsers, adminUpdateUser, adminDeleteUser } from '../controllers/userController';
+import { updateProfile, searchUsers, getAllUsers, adminUpdateUser, adminDeleteUser, adminUpdateUserPassword } from '../controllers/userController';
 
 router.put('/users/profile', updateProfile);
 router.get('/users/search', searchUsers);
@@ -30,6 +30,7 @@ router.get('/users/search', searchUsers);
 // Admin
 router.get('/admin/users', getAllUsers);
 router.put('/admin/users/:id', adminUpdateUser);
+router.put('/admin/users/:id/password', adminUpdateUserPassword);
 router.delete('/admin/users/:id', adminDeleteUser);
 
 export default router;

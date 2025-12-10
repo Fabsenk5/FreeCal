@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { db } from '../db';
 import { profiles } from '../db/schema';
 import { eq, like, ilike, ne } from 'drizzle-orm';
+import bcrypt from 'bcryptjs';
 
 // --- User Profile Operations ---
 
@@ -144,3 +145,31 @@ export const adminDeleteUser = async (req: Request & { user?: any }, res: Respon
         res.status(500).json({ message: 'Error deleting user', error });
     }
 }
+
+export const adminUpdateUserPassword = async (req: Request & { user?: any }, res: Response) => {
+    if (!req.user) return res.sendStatus(401);
+    if (!(await isAdmin(req.user.id))) return res.sendStatus(403);
+
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+        return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        await db.update(profiles)
+            .set({
+                passwordHash: hashedPassword,
+                updatedAt: new Date()
+            })
+            .where(eq(profiles.id, id));
+
+        res.json({ message: 'Password updated successfully' });
+    } catch (error) {
+        console.error('Admin Update Password Error:', error);
+        res.status(500).json({ message: 'Error updating password', error });
+    }
+};

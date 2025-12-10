@@ -13,10 +13,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Check, X, ChevronDown, Loader2, Shield, Trash2 } from 'lucide-react';
+import { Check, X, ChevronDown, Loader2, Shield, Trash2, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { Profile } from '@/lib/api';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface PendingUser extends Profile {
   created_at: string;
@@ -29,38 +32,24 @@ export function AdminPanel() {
   const [approvedUsers, setApprovedUsers] = useState<PendingUser[]>([]);
   const [rejectedUsers, setRejectedUsers] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Dialog state
   const [actionDialog, setActionDialog] = useState<{
     open: boolean;
     userId: string | null;
     userName: string;
-    action: 'approve' | 'reject' | 'delete' | null;
+    action: 'approve' | 'reject' | 'delete' | 'password_reset' | null;
   }>({
     open: false,
     userId: null,
     userName: '',
     action: null,
   });
+
+  const [newPassword, setNewPassword] = useState('');
   const [processing, setProcessing] = useState(false);
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get('/admin/users');
-      // data is array of all users
-      setPendingUsers(data.filter((u: any) => u.approval_status === 'pending'));
-      setApprovedUsers(data.filter((u: any) => u.approval_status === 'approved'));
-      setRejectedUsers(data.filter((u: any) => u.approval_status === 'rejected'));
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      toast.error('Failed to load users');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ... (existing useEffect and fetchUsers)
 
   const handleAction = async () => {
     if (!actionDialog.userId || !actionDialog.action || !user) return;
@@ -70,6 +59,18 @@ export function AdminPanel() {
       if (actionDialog.action === 'delete') {
         // Delete user
         await api.delete(`/admin/users/${actionDialog.userId}`);
+        toast.success(`Deleted user ${actionDialog.userName}`);
+      } else if (actionDialog.action === 'password_reset') {
+        if (!newPassword || newPassword.length < 6) {
+          toast.error('Password must be at least 6 characters');
+          setProcessing(false);
+          return;
+        }
+        await api.put(`/admin/users/${actionDialog.userId}/password`, {
+          password: newPassword
+        });
+        toast.success(`Password updated for ${actionDialog.userName}`);
+        setNewPassword('');
       } else {
         const isApproved = actionDialog.action === 'approve';
         const status = isApproved ? 'approved' : 'rejected';
@@ -87,21 +88,20 @@ export function AdminPanel() {
       }
 
       // Refresh user lists
-      await fetchUsers();
-    } catch (error) {
+      if (actionDialog.action !== 'password_reset') {
+        await fetchUsers(); // Only refresh list if status changed or deleted
+      }
+    } catch (error: any) {
       console.error('Error updating user:', error);
-      toast.error('Failed to update user status');
+      toast.error(error.response?.data?.message || 'Failed to update user');
     } finally {
       setProcessing(false);
       setActionDialog({ open: false, userId: null, userName: '', action: null });
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    // This wrapper acts as alias for consistency if needed, but handleAction handles it
-  };
-
-  const openActionDialog = (userId: string, userName: string, action: 'approve' | 'reject' | 'delete') => {
+  const openActionDialog = (userId: string, userName: string, action: 'approve' | 'reject' | 'delete' | 'password_reset') => {
+    setNewPassword('');
     setActionDialog({
       open: true,
       userId,
@@ -156,14 +156,26 @@ export function AdminPanel() {
           )}
         </div>
         {(actionType === 'approved' || actionType === 'rejected') && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => openActionDialog(user.id, user.display_name, 'delete')}
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => openActionDialog(user.id, user.display_name, 'password_reset')}
+              className="text-muted-foreground hover:text-primary hover:bg-primary/10"
+              title="Reset Password"
+            >
+              <KeyRound className="w-4 h-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => openActionDialog(user.id, user.display_name, 'delete')}
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              title="Delete User"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
         )}
       </div>
 
@@ -289,7 +301,7 @@ export function AdminPanel() {
       </Collapsible>
 
       {/* Confirmation Dialog */}
-      <AlertDialog open={actionDialog.open} onOpenChange={(open) =>
+      <AlertDialog open={actionDialog.open && actionDialog.action !== 'password_reset'} onOpenChange={(open) =>
         setActionDialog({ ...actionDialog, open })
       }>
         <AlertDialogContent>
@@ -329,6 +341,37 @@ export function AdminPanel() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Password Reset Dialog */}
+      <Dialog open={actionDialog.open && actionDialog.action === 'password_reset'} onOpenChange={(open) => {
+        if (!open) setActionDialog({ ...actionDialog, open: false, action: null });
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password for {actionDialog.userName}</DialogTitle>
+            <DialogDescription>
+              Enter a new password for this user. They will need to use this to log in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-4">
+            <Label htmlFor="new-password">New Password</Label>
+            <Input
+              id="new-password"
+              type="text"
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              placeholder="Enter new password"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setActionDialog({ ...actionDialog, open: false, action: null })}>Cancel</Button>
+            <Button onClick={handleAction} disabled={processing || newPassword.length < 6}>
+              {processing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Update Password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
