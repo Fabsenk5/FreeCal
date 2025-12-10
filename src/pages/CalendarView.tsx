@@ -9,7 +9,7 @@ import { getMonthName } from '@/utils/dateUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EventCard } from '@/components/calendar/EventCard';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -85,25 +85,14 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
     if (!selectedEvent) return;
 
     try {
-      const { error } = await supabase
-        .from('events')
-        .delete()
-        .eq('id', selectedEvent.id);
-
-      if (error) {
-        toast.error(`Delete Error: ${error.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
-        return;
-      }
+      await api.delete(`/events/${selectedEvent.id}`);
 
       toast.success('Event deleted successfully!');
       setSelectedEventId(null);
       refreshEvents();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Delete error:', err);
-      toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`, {
+      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });

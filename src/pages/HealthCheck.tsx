@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { toast } from 'sonner';
 
 export function HealthCheck() {
@@ -11,58 +11,46 @@ export function HealthCheck() {
     setTesting(true);
     const testResults: string[] = [];
 
-    // Test 1: Check Supabase connection
-    testResults.push('Testing Supabase connection...');
+    // Test 1: Check Backend Connection
+    testResults.push('Testing Backend connection...');
     try {
-      const { data, error } = await supabase.from('profiles').select('count');
-      if (error) {
-        testResults.push(`❌ Profiles query failed: ${error.message}`);
-      } else {
-        testResults.push(`✅ Database connected successfully`);
-      }
-    } catch (err) {
-      testResults.push(`❌ Connection error: ${err instanceof Error ? err.message : 'Unknown'}`);
-    }
+      // Simple ping to an endpoint, e.g. /events or just check if we get a response
+      // using a purposely failing auth call or a public endpoint if available.
+      // For now, let's try to hit the API root or a known endpoint.
+      // Since most valid endpoints are protected, we might get 401, which actually confirms the API is UP.
 
-    // Test 2: Check auth service
-    testResults.push('Testing auth service...');
-    try {
-      const { data, error } = await supabase.auth.getSession();
-      if (error) {
-        testResults.push(`❌ Auth service error: ${error.message}`);
-      } else {
-        testResults.push(`✅ Auth service responding`);
-      }
-    } catch (err) {
-      testResults.push(`❌ Auth error: ${err instanceof Error ? err.message : 'Unknown'}`);
-    }
-
-    // Test 3: Check signup flow
-    testResults.push('Testing signup capability...');
-    try {
-      const testEmail = `test${Date.now()}@example.com`;
-      const { data, error } = await supabase.auth.signUp({
-        email: testEmail,
-        password: 'test123456',
-        options: {
-          data: { display_name: 'Test User' }
+      await api.get('/events').catch(err => {
+        if (err.response?.status === 401) {
+          return; // This is good, it means server is reachable
         }
+        throw err;
       });
-      
-      if (error) {
-        testResults.push(`❌ Signup test failed: ${error.message}`);
-      } else if (data.user) {
-        testResults.push(`✅ Signup flow working`);
-        // Clean up test user
-        await supabase.auth.signOut();
+      testResults.push(`✅ Backend connected successfully`);
+    } catch (err: any) {
+      if (err.response?.status === 401) {
+        testResults.push(`✅ Backend connected (Protected routes responding 401)`);
+      } else {
+        testResults.push(`❌ Connection error: ${err.message || 'Unknown error'}`);
       }
-    } catch (err) {
-      testResults.push(`❌ Signup error: ${err instanceof Error ? err.message : 'Unknown'}`);
+    }
+
+    // Test 2: Check Auth Endpoint
+    testResults.push('Testing Auth service...');
+    try {
+      await api.get('/auth/me');
+      testResults.push(`✅ Auth service reachable`);
+    } catch (err: any) {
+      // 401 is expected if not logged in, but means service is up
+      if (err.response?.status === 401) {
+        testResults.push(`✅ Auth service reachable (User not logged in)`);
+      } else {
+        testResults.push(`❌ Auth service error: ${err.message}`);
+      }
     }
 
     setResults(testResults);
     setTesting(false);
-    
+
     toast.info('Health check complete', {
       description: 'Check results below'
     });
@@ -73,12 +61,12 @@ export function HealthCheck() {
       <div className="w-full max-w-2xl space-y-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold mb-2">System Health Check</h1>
-          <p className="text-muted-foreground">Test database and authentication services</p>
+          <p className="text-muted-foreground">Test backend API services</p>
         </div>
 
         <div className="bg-card rounded-2xl p-8 shadow-card">
-          <Button 
-            onClick={runTests} 
+          <Button
+            onClick={runTests}
             disabled={testing}
             className="w-full mb-6"
           >
