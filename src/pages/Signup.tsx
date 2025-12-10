@@ -1,25 +1,14 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+// import { supabase } from '@/lib/supabase'; // Removed
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Calendar, AlertCircle, Check, X, Loader2 } from 'lucide-react';
+import { Calendar, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { notifyAdminNewUser } from '@/lib/notifications';
 
-// Debounce utility
-function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null;
-  return (...args: Parameters<T>) => {
-    if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-}
+
 
 export function Signup() {
   const [displayName, setDisplayName] = useState('');
@@ -29,49 +18,12 @@ export function Signup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  
-  // Email validation states
-  const [emailStatus, setEmailStatus] = useState<'checking' | 'available' | 'taken' | null>(null);
-
-  // Check email availability
-  const checkEmailAvailability = useCallback(async (emailToCheck: string) => {
-    if (!emailToCheck || !emailToCheck.includes('@')) {
-      setEmailStatus(null);
-      return;
-    }
-
-    setEmailStatus('checking');
-    
-    try {
-      const { data, error } = await supabase.rpc('check_email_exists', { 
-        email_to_check: emailToCheck 
-      });
-
-      if (error) {
-        console.error('Email check error:', error);
-        setEmailStatus(null);
-        return;
-      }
-
-      setEmailStatus(data ? 'taken' : 'available');
-    } catch (error) {
-      console.error('Email check error:', error);
-      setEmailStatus(null);
-    }
-  }, []);
-
-  // Debounced email checking (500ms delay)
-  const debouncedEmailCheck = useMemo(
-    () => debounce(checkEmailAvailability, 500),
-    [checkEmailAvailability]
-  );
 
   // Handle email input change
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value;
     setEmail(newEmail);
     setError('');
-    debouncedEmailCheck(newEmail);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -94,68 +46,38 @@ export function Signup() {
       return;
     }
 
-    if (emailStatus === 'taken') {
-      setError('This email is already registered. Please sign in instead.');
-      return;
-    }
-
-    if (emailStatus === 'checking') {
-      setError('Please wait while we verify your email.');
-      return;
-    }
-
     setLoading(true);
-    
+
     try {
-      // SIMPLIFIED: Just signup with metadata - the database trigger handles profile creation!
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { api } = await import('@/lib/api'); // Dynamic import to avoid cycles if any, or just import at top (better)
+
+      // Use custom API for registration
+      await api.post('/auth/register', {
         email,
         password,
-        options: {
-          data: {
-            display_name: displayName,
-          }
-        }
+        displayName
       });
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('User creation failed');
+      // Notify admin of new user (Backend logic should handle this usually, but retaining frontend call structure for now if needed)
+      // await notifyAdminNewUser(email, displayName); // TODO: Move to backend
 
-      // Notify admin of new user
-      try {
-        await notifyAdminNewUser(email, displayName);
-      } catch (notifyError) {
-        console.error('Failed to notify admin:', notifyError);
-        // Don't fail signup if notification fails
-      }
-
-      // That's it! User stays logged in, profile auto-created by trigger
       toast.success('Account created successfully!', {
-        description: 'Your account is pending approval. You\'ll receive access once approved.',
+        description: 'You can now log in.',
       });
 
-      // Redirect to home - ProtectedRoute will auto-redirect to /pending-approval
+      // Redirect to login
       setTimeout(() => {
-        navigate('/', { replace: true });
-      }, 500); // Small delay to show the toast
-      
+        navigate('/login', { replace: true });
+      }, 500);
+
     } catch (err: any) {
       console.error('Signup error:', err);
-      
-      if (err.message?.includes('already registered') || err.message?.includes('User already registered')) {
+      const msg = err.response?.data?.message || err.message;
+
+      if (msg?.includes('already exists')) {
         setError('An account with this email already exists. Please sign in instead.');
-        setEmailStatus('taken');
-      } else if (err.code === '23505') {
-        setError('An account with this email already exists. Please sign in instead.');
-        setEmailStatus('taken');
-      } else if (err.message?.includes('Invalid email')) {
-        setError('Please enter a valid email address.');
-      } else if (err.message?.includes('Password should be at least 6 characters')) {
-        setError('Password must be at least 6 characters long.');
-      } else if (err.message?.includes('Unable to validate email')) {
-        setError('Invalid email format. Please check your email address.');
       } else {
-        setError(err.message || 'Failed to create account. Please try again.');
+        setError(msg || 'Failed to create account. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -213,44 +135,11 @@ export function Signup() {
                   placeholder="you@example.com"
                   value={email}
                   onChange={handleEmailChange}
-                  className={cn(
-                    "bg-background pr-10",
-                    emailStatus === 'taken' && "border-destructive focus-visible:ring-destructive",
-                    emailStatus === 'available' && "border-green-500 focus-visible:ring-green-500"
-                  )}
+                  className="bg-background"
                   required
                   autoComplete="email"
                 />
-                {/* Email status indicators */}
-                {emailStatus === 'checking' && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  </div>
-                )}
-                {emailStatus === 'available' && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <Check className="h-4 w-4 text-green-500" />
-                  </div>
-                )}
-                {emailStatus === 'taken' && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <X className="h-4 w-4 text-destructive" />
-                  </div>
-                )}
               </div>
-              {emailStatus === 'taken' && (
-                <p className="text-sm text-destructive">
-                  This email is already registered.{' '}
-                  <Link to="/login" className="underline hover:no-underline">
-                    Sign in instead
-                  </Link>
-                </p>
-              )}
-              {emailStatus === 'available' && (
-                <p className="text-sm text-green-600 dark:text-green-500">
-                  Email available
-                </p>
-              )}
             </div>
 
             <div className="space-y-2">
@@ -298,7 +187,7 @@ export function Signup() {
             <Button
               type="submit"
               className="w-full"
-              disabled={loading || emailStatus === 'taken' || emailStatus === 'checking'}
+              disabled={loading}
             >
               {loading ? (
                 <>

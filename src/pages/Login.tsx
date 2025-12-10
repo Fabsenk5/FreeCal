@@ -27,14 +27,14 @@ export function Login() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    
+
     try {
       await signIn(email, password);
       navigate('/');
     } catch (err) {
       // Show user-friendly error messages
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      
+
       if (errorMessage.includes('Invalid login credentials')) {
         setError('Invalid email or password. Please check your credentials and try again.');
       } else if (errorMessage.includes('Email not confirmed')) {
@@ -46,7 +46,7 @@ export function Login() {
       } else {
         setError(errorMessage || 'Failed to sign in. Please try again.');
       }
-      
+
       console.error('Login failed:', err);
     } finally {
       setLoading(false);
@@ -129,6 +129,15 @@ export function Login() {
                 required
                 autoComplete="current-password"
               />
+            </div>
+
+            <div className="flex justify-end">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-primary hover:underline"
+              >
+                Forgot your password?
+              </Link>
             </div>
 
             <Button

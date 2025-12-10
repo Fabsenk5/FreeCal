@@ -55,7 +55,6 @@ export const getEvents = async (req: Request & { user?: any }, res: Response) =>
 
             return {
                 ...event,
-                user_id: event.userId, // Map camelCase back to snake_case for frontend compat if needed? 
                 // Drizzle types are camelCase automatically if not specified otherwise? 
                 // In schema.ts I defined columns like: userId: uuid('user_id'). 
                 // Drizzle returns 'userId'. Frontend expects 'user_id' (from Supabase types).

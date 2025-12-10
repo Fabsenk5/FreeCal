@@ -114,7 +114,16 @@ export const adminUpdateUser = async (req: Request & { user?: any }, res: Respon
             .where(eq(profiles.id, id))
             .returning();
 
-        res.json(updated);
+        res.json({
+            ...updated,
+            display_name: updated.displayName,
+            calendar_color: updated.calendarColor,
+            is_approved: updated.isApproved,
+            approval_status: updated.approvalStatus,
+            created_at: updated.createdAt?.toISOString(),
+            updated_at: updated.updatedAt?.toISOString(),
+            approved_at: updated.approvedAt?.toISOString()
+        });
     } catch (error) {
         console.error('Admin Update User Error:', error);
         res.status(500).json({ message: 'Error updating user', error });
