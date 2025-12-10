@@ -38,8 +38,9 @@ export const isToday = (date: Date): boolean => {
   return isSameDay(date, new Date());
 };
 
+
 export const getWeekDays = (): string[] => {
-  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 };
 
 export const getMonthName = (month: number): string => {
@@ -51,7 +52,13 @@ export const getMonthName = (month: number): string => {
 };
 
 export const getCalendarDays = (year: number, month: number): (Date | null)[] => {
-  const firstDay = getFirstDayOfMonth(year, month);
+  // getDay() returns 0 for Sunday, 1 for Monday, etc.
+  const firstDayOfWeek = new Date(year, month, 1).getDay();
+
+  // Convert to Monday-based index: 0=Mon, 1=Tue, ..., 6=Sun
+  // Sunday (0) becomes 6. Monday (1) becomes 0.
+  const firstDay = (firstDayOfWeek + 6) % 7;
+
   const daysInMonth = getDaysInMonth(year, month);
   const days: (Date | null)[] = [];
 
@@ -76,27 +83,37 @@ export const addMonths = (date: Date, months: number): Date => {
 
 export const startOfWeek = (date: Date): Date => {
   const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day;
-  return new Date(d.setDate(diff));
+  const day = d.getDay(); // 0 (Sun) to 6 (Sat)
+
+  // Calculate difference to get to Monday
+  // If Mon (1), diff is 0. If Tue (2), diff is 1. ... If Sun (0), diff is 6.
+  const diff = day === 0 ? 6 : day - 1;
+
+  d.setDate(d.getDate() - diff);
+  return new Date(d.setHours(0, 0, 0, 0));
 };
 
 export const endOfWeek = (date: Date): Date => {
   const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() + (6 - day);
-  return new Date(d.setDate(diff));
+  const day = d.getDay(); // 0 (Sun) to 6 (Sat)
+
+  // Calculate difference to get to Sunday
+  // If Mon (1), diff is 6. If Tue (2), diff is 5. ... If Sun (0), diff is 0.
+  const diff = day === 0 ? 0 : 7 - day;
+
+  d.setDate(d.getDate() + diff);
+  return new Date(d.setHours(23, 59, 59, 999));
 };
 
 export const getWeekDates = (date: Date): Date[] => {
   const start = startOfWeek(date);
   const dates: Date[] = [];
-  
+
   for (let i = 0; i < 7; i++) {
     const d = new Date(start);
     d.setDate(d.getDate() + i);
     dates.push(d);
   }
-  
+
   return dates;
 };

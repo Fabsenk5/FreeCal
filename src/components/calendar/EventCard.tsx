@@ -19,8 +19,8 @@ export function EventCard({ event, onClick }: EventCardProps) {
   // Use gold color for background if event has relationship attendees
   const backgroundColor = hasRelationshipAttendees ? 'hsl(45, 90%, 55%)' : event.color;
 
-  // Keep original event color for border and dot
-  const eventColor = event.color;
+  // Use gold color for border if event has relationship attendees, otherwise use creator/event color
+  const eventColor = hasRelationshipAttendees ? 'hsl(45, 90%, 55%)' : event.color;
 
   // Check if event spans multiple days
   const startDate = new Date(event.startDate);
