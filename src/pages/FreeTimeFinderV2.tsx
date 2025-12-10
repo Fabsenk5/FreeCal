@@ -88,7 +88,10 @@ export function FreeTimeFinderV2() {
                 // Assuming `events` contains ALL relevant events we can see.
 
                 const involvesSelectedUser = selectedUsers.includes(e.user_id) ||
-                    (e.attendees && e.attendees.some((att: any) => selectedUsers.includes(typeof att === 'string' ? att : att.id || att)));
+                    (e.attendees && e.attendees.some((att: any) => selectedUsers.includes(typeof att === 'string' ? att : att.id || att))) ||
+                    // Also check self!
+                    e.user_id === user?.id ||
+                    (e.attendees && e.attendees.some((att: any) => (typeof att === 'string' ? att : att.id || att) === user?.id));
 
                 return overlapsDay && involvesSelectedUser;
             });
