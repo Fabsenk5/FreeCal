@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Mail, UserPlus, Trash2, Loader2, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { ColorPicker } from '@/components/profile/ColorPicker';
 import { PendingRequestsSection } from '@/components/profile/PendingRequestsSection';
@@ -45,8 +45,10 @@ export function Profile() {
         display_name: displayName,
         email,
       });
+      toast.success('Profile updated successfully');
     } catch (error) {
       console.error('Save profile error:', error);
+      toast.error('Failed to update profile');
     } finally {
       setSaving(false);
     }
@@ -54,13 +56,14 @@ export function Profile() {
 
   const handleColorChange = async (color: string) => {
     setCalendarColor(color);
-    
+
     try {
       await updateProfile({
         calendar_color: color,
       });
     } catch (error) {
       console.error('Update color error:', error);
+      toast.error('Failed to update color');
     }
   };
 
@@ -70,68 +73,18 @@ export function Profile() {
     setSearching(true);
 
     try {
-      // Search for user by email
-      const { data: profiles, error: searchError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('email', searchEmail.trim())
-        .single();
-
-      if (searchError || !profiles) {
-        toast.error('User not found', {
-          description: 'No user found with that email address.',
-        });
-        return;
-      }
-
-      if (profiles.id === user.id) {
-        toast.error('Cannot add yourself', {
-          description: 'You cannot create a relationship with yourself.',
-        });
-        return;
-      }
-
-      // Check if relationship already exists
-      const { data: existing } = await supabase
-        .from('relationships')
-        .select('*')
-        .or(
-          `and(user_id.eq.${user.id},related_user_id.eq.${profiles.id}),and(user_id.eq.${profiles.id},related_user_id.eq.${user.id})`
-        )
-        .single();
-
-      if (existing) {
-        toast.error('Relationship exists', {
-          description: 'You already have a relationship with this user.',
-        });
-        return;
-      }
-
-      // Create relationship request
-      const { error: createError } = await supabase.from('relationships').insert({
-        user_id: user.id,
-        related_user_id: profiles.id,
-        status: 'pending', // Changed from 'accepted' to 'pending'
-      });
-
-      if (createError) {
-        toast.error(`Database Error: ${createError.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
-        return;
-      }
+      await api.post('/relationships', { email: searchEmail.trim() });
 
       toast.success('Request sent!', {
-          description: 'You will see their calendar once they accept your request.',
+        description: 'You will see their calendar once they accept your request.',
       });
 
       setSearchEmail('');
       setAddDialogOpen(false);
       refreshRelationships();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Add relationship error:', err);
-      toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`, {
+      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });
@@ -142,27 +95,16 @@ export function Profile() {
 
   const handleRemoveRelationship = async (relationshipId: string, userName: string) => {
     try {
-      const { error } = await supabase
-        .from('relationships')
-        .delete()
-        .eq('id', relationshipId);
-
-      if (error) {
-        toast.error(`Database Error: ${error.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
-        return;
-      }
+      await api.delete(`/relationships/${relationshipId}`);
 
       toast.success('Relationship removed', {
         description: `${userName} has been removed from your relationships.`,
       });
 
       refreshRelationships();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Remove relationship error:', err);
-      toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`, {
+      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });

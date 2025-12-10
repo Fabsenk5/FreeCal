@@ -9,9 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useRelationships } from '@/hooks/useRelationships';
 import { Calendar, Upload, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { EventWithAttendees } from '@/hooks/useEvents';
+import { api, EventWithAttendees } from '@/lib/api';
 import { parseICS, ParsedEvent } from '@/utils/icsParser';
 import { ImportMethodDialog } from '@/components/calendar/ImportMethodDialog';
 import { ScreenshotImportDialog } from '@/components/calendar/ScreenshotImportDialog';
@@ -54,17 +53,17 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
   const convertTo24Hour = (time12: string): string => {
     const match = time12.match(/(\d+):(\d+)\s*(AM|PM)/i);
     if (!match) return '';
-    
+
     let hours = parseInt(match[1]);
     const minutes = match[2];
     const period = match[3].toUpperCase();
-    
+
     if (period === 'PM' && hours !== 12) {
       hours += 12;
     } else if (period === 'AM' && hours === 12) {
       hours = 0;
     }
-    
+
     return `${hours.toString().padStart(2, '0')}:${minutes}`;
   };
 
@@ -72,13 +71,13 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
   useEffect(() => {
     if (eventToEdit) {
       console.log('CreateEvent: Loading event to edit:', eventToEdit);
-      
+
       setEditingEventId(eventToEdit.id);
       setTitle(eventToEdit.title);
-      
+
       const start = new Date(eventToEdit.start_time);
       const end = new Date(eventToEdit.end_time);
-      
+
       setStartDate(start.toISOString().split('T')[0]);
       setStartTime(start.toTimeString().slice(0, 5));
       setEndDate(end.toISOString().split('T')[0]);
@@ -89,19 +88,19 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       setRecurrenceInterval(eventToEdit.recurrence_interval || 1);
       setAttendees(eventToEdit.attendees || []);
       setViewers(eventToEdit.viewers || []);
-      
+
       // Build unified sharing status from attendees and viewers
       const status = {};
       (eventToEdit.attendees || []).forEach(id => { status[id] = 'attendee'; });
       (eventToEdit.viewers || []).forEach(id => { status[id] = 'viewer'; });
       setSharingStatus(status);
-      
+
       setEventColor(eventToEdit.color || eventToEdit.creator_color || profile?.calendar_color || 'hsl(217, 91%, 60%)');
       setNotes(eventToEdit.description || '');
       setLocation(eventToEdit.location || '');
       setEventUrl(eventToEdit.url || '');
       setIsTentative(eventToEdit.is_tentative || false);
-      
+
       toast.info('Editing event', {
         description: 'Update the details below and save your changes.',
       });
@@ -120,7 +119,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
           setStartTime(convertTo24Hour(data.startTime));
           setEndTime(convertTo24Hour(data.endTime));
           setAttendees(data.attendees || []);
-          
+
           localStorage.removeItem('prefillEventData');
           toast.success('Event details pre-filled from free time slot');
         } catch (error) {
@@ -144,7 +143,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
     try {
       const content = await file.text();
       const parsed = parseICS(content);
-      
+
       if (!parsed) {
         toast.error('Could not parse calendar file', {
           description: 'Please make sure the file is a valid ICSS file.',
@@ -161,7 +160,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       setEndTime(parsed.endTime || '');
       setIsAllDay(parsed.isAllDay);
       setNotes(parsed.description || '');
-      
+
       if (parsed.recurrenceRule) {
         // Try to detect recurrence type from RRULE
         if (parsed.recurrenceRule.includes('FREQ=DAILY')) {
@@ -178,7 +177,9 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       // Store iOS metadata for later use
       if (parsed.alerts) {
         localStorage.setItem('importedAlerts', JSON.stringify(parsed.alerts));
-        setAlerts(parsed.alerts);
+        // Alerts is string[] in state, but mapped from object in parser?
+        // Let's assume we just want to flag that we have alerts, or map them to a simple string representation
+        setAlerts(parsed.alerts.map((a: any) => `${a.type}:${a.minutes}`));
       }
       if (parsed.attendees) {
         localStorage.setItem('importedAttendees', JSON.stringify(parsed.attendees));
@@ -216,7 +217,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
     setStartDate(data.startDate);
     setEndDate(data.endDate);
     setIsAllDay(data.isAllDay);
-    
+
     if (data.startTime) setStartTime(data.startTime);
     if (data.endTime) setEndTime(data.endTime);
     if (data.location) setLocation(data.location);
@@ -239,7 +240,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!title.trim()) {
       toast.error('Please enter an event title');
       return;
@@ -270,7 +271,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       // Compare only dates for all-day events
       const startDateOnly = new Date(startDate).setHours(0, 0, 0, 0);
       const endDateOnly = new Date(endDate || startDate).setHours(0, 0, 0, 0);
-      
+
       if (endDateOnly < startDateOnly) {
         toast.error('End date must be on or after start date', {
           description: 'Please adjust your event dates.',
@@ -287,11 +288,10 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
       }
     }
 
-    // Build attendees and viewers arrays from unified sharing status
     const attendeesList = Object.entries(sharingStatus)
       .filter(([_, status]) => status === 'attendee')
       .map(([userId]) => userId);
-    
+
     const viewersList = Object.entries(sharingStatus)
       .filter(([_, status]) => status === 'viewer')
       .map(([userId]) => userId);
@@ -308,7 +308,6 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
         : new Date(`${endDate || startDate}T${endTime || startTime}`).toISOString();
 
       const eventData = {
-        user_id: user.id,
         title: title.trim(),
         description: notes.trim() || null,
         start_time: startDateTimeIso,
@@ -323,52 +322,13 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
         location: location.trim() || null,
         url: eventUrl.trim() || null,
         is_tentative: isTentative,
+        attendees: attendeesList,
+        viewers: viewersList,
       };
 
       if (editingEventId) {
         // UPDATE existing event
-        const { error: updateError } = await supabase
-          .from('events')
-          .update(eventData)
-          .eq('id', editingEventId);
-
-        if (updateError) {
-          toast.error(`Update Error: ${updateError.message}`, {
-            description: 'Copy this error and paste in chat for help',
-            duration: 10000,
-          });
-          return;
-        }
-
-        // Update attendees
-        await supabase
-          .from('event_attendees')
-          .delete()
-          .eq('event_id', editingEventId);
-
-        if (attendeesList.length > 0) {
-          const attendeeRecords = attendeesList.map((attendeeId) => ({
-            event_id: editingEventId,
-            user_id: attendeeId,
-          }));
-
-          await supabase.from('event_attendees').insert(attendeeRecords);
-        }
-
-        // Update viewers
-        await supabase
-          .from('event_viewers')
-          .delete()
-          .eq('event_id', editingEventId);
-
-        if (viewersList.length > 0) {
-          const viewerRecords = viewersList.map((viewerId) => ({
-            event_id: editingEventId,
-            user_id: viewerId,
-          }));
-
-          await supabase.from('event_viewers').insert(viewerRecords);
-        }
+        await api.put(`/events/${editingEventId}`, eventData);
 
         toast.success('Event updated successfully!');
         resetForm();
@@ -377,52 +337,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
         }
       } else {
         // CREATE new event
-        const { data: newEvent, error: eventError } = await supabase
-          .from('events')
-          .insert(eventData)
-          .select()
-          .single();
-
-        if (eventError) {
-          toast.error(`Database Error: ${eventError.message}`, {
-            description: 'Copy this error and paste in chat for help',
-            duration: 10000,
-          });
-          return;
-        }
-
-        // Add creator and attendees
-        const attendeeRecords = [
-          { event_id: newEvent.id, user_id: user.id },
-          ...attendeesList.map((attendeeId) => ({
-            event_id: newEvent.id,
-            user_id: attendeeId,
-          })),
-        ];
-
-        const { error: attendeeError } = await supabase
-          .from('event_attendees')
-          .insert(attendeeRecords);
-
-        if (attendeeError) {
-          console.error('Error adding attendees:', attendeeError);
-        }
-
-        // Add viewers
-        if (viewersList.length > 0) {
-          const viewerRecords = viewersList.map((viewerId) => ({
-            event_id: newEvent.id,
-            user_id: viewerId,
-          }));
-
-          const { error: viewerError } = await supabase
-            .from('event_viewers')
-            .insert(viewerRecords);
-
-          if (viewerError) {
-            console.error('Error adding viewers:', viewerError);
-          }
-        }
+        await api.post('/events', eventData);
 
         toast.success('Event created successfully!');
         resetForm();
@@ -430,9 +345,9 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
           onEventSaved();
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Save error:', err);
-      toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`, {
+      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });
@@ -503,8 +418,8 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
         title={editingEventId ? "Edit Event" : "Create Event"}
         leftAction={
           editingEventId ? (
-            <button 
-              className="text-sm text-muted-foreground" 
+            <button
+              className="text-sm text-muted-foreground"
               onClick={() => {
                 resetForm();
                 if (onEventSaved) {
@@ -677,11 +592,10 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
                         key={index}
                         type="button"
                         onClick={() => toggleRecurrenceDay(index.toString())}
-                        className={`aspect-square rounded-lg transition-colors text-sm font-medium ${
-                          recurrenceDays.includes(index.toString())
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-card hover:bg-accent'
-                        }`}
+                        className={`aspect-square rounded-lg transition-colors text-sm font-medium ${recurrenceDays.includes(index.toString())
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-card hover:bg-accent'
+                          }`}
                       >
                         {day}
                       </button>
@@ -717,7 +631,7 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
             <div className="space-y-2">
               {relationships.map((rel) => {
                 const status = sharingStatus[rel.profile.id] || 'none';
-                
+
                 return (
                   <button
                     key={rel.id}
@@ -833,10 +747,10 @@ export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
               )}
             </Button>
             {editingEventId && (
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="w-full" 
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
                 onClick={() => {
                   resetForm();
                   if (onEventSaved) {

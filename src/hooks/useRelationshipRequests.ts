@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, Relationship, Profile } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { Relationship, Profile } from '@/lib/supabase';
 
 export interface RelationshipRequestWithProfile extends Relationship {
   sender_profile: Profile;
@@ -19,62 +20,23 @@ export function useRelationshipRequests() {
     }
 
     try {
-      // Fetch pending requests where current user is the receiver (related_user_id)
-      const { data: requests, error } = await supabase
-        .from('relationships')
-        .select('*')
-        .eq('related_user_id', user.id)
-        .eq('status', 'pending');
+      // Fetch all pending relationships
+      const { data } = await api.get('/relationships?status=pending');
 
-      if (error) {
-        console.error('Error fetching pending requests:', error);
-        toast.error(`Database Error: ${error.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
-        return;
-      }
+      // Filter for those where I am the RECEIVER (related_user_id)
+      const requests = data.filter((rel: any) => rel.related_user_id === user.id);
 
-      if (!requests || requests.length === 0) {
-        setPendingRequests([]);
-        return;
-      }
-
-      // Get sender profile IDs
-      const senderIds = requests.map((req) => req.user_id);
-
-      // Fetch sender profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', senderIds);
-
-      if (profilesError) {
-        console.error('Error fetching sender profiles:', profilesError);
-        toast.error(`Database Error: ${profilesError.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
-        return;
-      }
-
-      const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
-
-      const requestsWithProfiles: RelationshipRequestWithProfile[] = requests
-        .map((req) => {
-          const senderProfile = profileMap.get(req.user_id);
-          if (!senderProfile) return null;
-          return {
-            ...req,
-            sender_profile: senderProfile,
-          };
-        })
-        .filter((req): req is RelationshipRequestWithProfile => req !== null);
+      // The backend returns 'profile' which is the OTHER person.
+      // So for these requests, 'profile' IS the sender profile.
+      const requestsWithProfiles = requests.map((req: any) => ({
+        ...req,
+        sender_profile: req.profile
+      }));
 
       setPendingRequests(requestsWithProfiles);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Unexpected error fetching pending requests:', err);
-      toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`, {
+      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });
@@ -89,18 +51,7 @@ export function useRelationshipRequests() {
 
   const acceptRequest = async (requestId: string) => {
     try {
-      const { error } = await supabase
-        .from('relationships')
-        .update({ status: 'accepted', updated_at: new Date().toISOString() })
-        .eq('id', requestId);
-
-      if (error) {
-        toast.error(`Database Error: ${error.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
-        return false;
-      }
+      await api.put(`/relationships/${requestId}`, { status: 'accepted' });
 
       toast.success('Request accepted!', {
         description: 'You can now see each other\'s calendars and find free time together!',
@@ -108,9 +59,9 @@ export function useRelationshipRequests() {
 
       await fetchPendingRequests();
       return true;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error accepting request:', err);
-      toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`, {
+      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });
@@ -120,18 +71,8 @@ export function useRelationshipRequests() {
 
   const rejectRequest = async (requestId: string) => {
     try {
-      const { error } = await supabase
-        .from('relationships')
-        .update({ status: 'rejected', updated_at: new Date().toISOString() })
-        .eq('id', requestId);
-
-      if (error) {
-        toast.error(`Database Error: ${error.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
-        return false;
-      }
+      // Rejecting usually just updates status to 'rejected'
+      await api.put(`/relationships/${requestId}`, { status: 'rejected' });
 
       toast.success('Request rejected', {
         description: 'The request has been declined.',
@@ -139,9 +80,9 @@ export function useRelationshipRequests() {
 
       await fetchPendingRequests();
       return true;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error rejecting request:', err);
-      toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`, {
+      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });

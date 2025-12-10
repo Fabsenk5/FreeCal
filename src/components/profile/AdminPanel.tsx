@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { supabase, Profile } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -16,6 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Check, X, ChevronDown, Loader2, Shield, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { Profile } from '@/lib/supabase'; // Keep type for now
 
 interface PendingUser extends Profile {
   created_at: string;
@@ -48,35 +49,11 @@ export function AdminPanel() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      // Fetch pending users
-      const { data: pending, error: pendingError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('approval_status', 'pending')
-        .order('created_at', { ascending: false });
-
-      if (pendingError) throw pendingError;
-      setPendingUsers(pending || []);
-
-      // Fetch approved users
-      const { data: approved, error: approvedError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('approval_status', 'approved')
-        .order('approved_at', { ascending: false });
-
-      if (approvedError) throw approvedError;
-      setApprovedUsers(approved || []);
-
-      // Fetch rejected users
-      const { data: rejected, error: rejectedError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('approval_status', 'rejected')
-        .order('updated_at', { ascending: false });
-
-      if (rejectedError) throw rejectedError;
-      setRejectedUsers(rejected || []);
+      const { data } = await api.get('/admin/users');
+      // data is array of all users
+      setPendingUsers(data.filter((u: any) => u.approval_status === 'pending'));
+      setApprovedUsers(data.filter((u: any) => u.approval_status === 'approved'));
+      setRejectedUsers(data.filter((u: any) => u.approval_status === 'rejected'));
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Failed to load users');
@@ -91,28 +68,19 @@ export function AdminPanel() {
     setProcessing(true);
     try {
       if (actionDialog.action === 'delete') {
-        // Delete user from auth and profiles
-        await handleDeleteUser(actionDialog.userId);
+        // Delete user
+        await api.delete(`/admin/users/${actionDialog.userId}`);
       } else {
-        const updates: Partial<Profile> = {
-          approval_status: actionDialog.action === 'approve' ? 'approved' : 'rejected',
-          is_approved: actionDialog.action === 'approve',
-        };
+        const isApproved = actionDialog.action === 'approve';
+        const status = isApproved ? 'approved' : 'rejected';
 
-        if (actionDialog.action === 'approve') {
-          updates.approved_at = new Date().toISOString();
-          updates.approved_by = user.id;
-        }
-
-        const { error } = await supabase
-          .from('profiles')
-          .update(updates)
-          .eq('id', actionDialog.userId);
-
-        if (error) throw error;
+        await api.put(`/admin/users/${actionDialog.userId}`, {
+          approval_status: status,
+          is_approved: isApproved
+        });
 
         toast.success(
-          actionDialog.action === 'approve' 
+          isApproved
             ? `${actionDialog.userName} has been approved!`
             : `${actionDialog.userName} has been rejected`
         );
@@ -130,32 +98,7 @@ export function AdminPanel() {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    try {
-      // First delete from profiles (this will cascade to related data)
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', userId);
-
-      if (profileError) {
-        console.error('Profile delete error:', profileError);
-        throw profileError;
-      }
-
-      // Then delete from auth.users using admin API
-      const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-
-      if (authError) {
-        console.error('Auth delete error:', authError);
-        throw authError;
-      }
-
-      toast.success('User deleted successfully');
-    } catch (error: any) {
-      console.error('Error deleting user:', error);
-      toast.error('Failed to delete user: ' + (error.message || 'Unknown error'));
-      throw error;
-    }
+    // This wrapper acts as alias for consistency if needed, but handleAction handles it
   };
 
   const openActionDialog = (userId: string, userName: string, action: 'approve' | 'reject' | 'delete') => {
@@ -177,12 +120,12 @@ export function AdminPanel() {
     });
   };
 
-  const UserCard = ({ 
-    user, 
-    showActions, 
-    actionType 
-  }: { 
-    user: PendingUser; 
+  const UserCard = ({
+    user,
+    showActions,
+    actionType
+  }: {
+    user: PendingUser;
     showActions: boolean;
     actionType?: 'pending' | 'approved' | 'rejected';
   }) => (
@@ -223,7 +166,7 @@ export function AdminPanel() {
           </Button>
         )}
       </div>
-      
+
       {showActions && (
         <div className="flex gap-2">
           <Button
@@ -269,7 +212,7 @@ export function AdminPanel() {
             <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </Button>
         </CollapsibleTrigger>
-        
+
         <CollapsibleContent className="space-y-4">
           {loading ? (
             <div className="flex items-center justify-center py-8">
@@ -297,9 +240,9 @@ export function AdminPanel() {
                   </div>
                 ) : (
                   pendingUsers.map((user) => (
-                    <UserCard 
-                      key={user.id} 
-                      user={user} 
+                    <UserCard
+                      key={user.id}
+                      user={user}
                       showActions={true}
                       actionType="pending"
                     />
@@ -314,9 +257,9 @@ export function AdminPanel() {
                   </div>
                 ) : (
                   approvedUsers.map((user) => (
-                    <UserCard 
-                      key={user.id} 
-                      user={user} 
+                    <UserCard
+                      key={user.id}
+                      user={user}
                       showActions={false}
                       actionType="approved"
                     />
@@ -331,9 +274,9 @@ export function AdminPanel() {
                   </div>
                 ) : (
                   rejectedUsers.map((user) => (
-                    <UserCard 
-                      key={user.id} 
-                      user={user} 
+                    <UserCard
+                      key={user.id}
+                      user={user}
                       showActions={false}
                       actionType="rejected"
                     />
@@ -346,24 +289,24 @@ export function AdminPanel() {
       </Collapsible>
 
       {/* Confirmation Dialog */}
-      <AlertDialog open={actionDialog.open} onOpenChange={(open) => 
+      <AlertDialog open={actionDialog.open} onOpenChange={(open) =>
         setActionDialog({ ...actionDialog, open })
       }>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {actionDialog.action === 'approve' 
-                ? 'Approve User' 
+              {actionDialog.action === 'approve'
+                ? 'Approve User'
                 : actionDialog.action === 'delete'
-                ? '⚠️ Delete User & All Data'
-                : 'Reject User'}
+                  ? '⚠️ Delete User & All Data'
+                  : 'Reject User'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {actionDialog.action === 'approve' 
+              {actionDialog.action === 'approve'
                 ? `Are you sure you want to approve ${actionDialog.userName}? They will gain immediate access to the app.`
                 : actionDialog.action === 'delete'
-                ? `⚠️ This will PERMANENTLY delete ${actionDialog.userName} and ALL their data including events, relationships, and attendees. This action CANNOT be undone!`
-                : `Are you sure you want to reject ${actionDialog.userName}? They will be notified and won't be able to access the app.`
+                  ? `⚠️ This will PERMANENTLY delete ${actionDialog.userName} and ALL their data including events, relationships, and attendees. This action CANNOT be undone!`
+                  : `Are you sure you want to reject ${actionDialog.userName}? They will be notified and won't be able to access the app.`
               }
             </AlertDialogDescription>
           </AlertDialogHeader>

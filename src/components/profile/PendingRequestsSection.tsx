@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, X, Loader2, Clock, Send } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -34,52 +34,19 @@ export function PendingRequestsSection() {
     if (!user) return;
 
     try {
-      const { data: requests, error } = await supabase
-        .from('relationships')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('status', 'pending');
+      const { data } = await api.get('/relationships?status=pending');
 
-      if (error) {
-        console.error('Error fetching sent requests:', error);
-        return;
-      }
+      // Filter for those where I am the SENDER (user_id)
+      const requests = data.filter((rel: any) => rel.user_id === user.id);
 
-      if (!requests || requests.length === 0) {
-        setSentRequests([]);
-        setSentLoading(false);
-        return;
-      }
-
-      // Get receiver profile IDs
-      const receiverIds = requests.map((req) => req.related_user_id);
-
-      // Fetch receiver profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', receiverIds);
-
-      if (profilesError) {
-        console.error('Error fetching receiver profiles:', profilesError);
-        return;
-      }
-
-      const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
-
-      const requestsWithProfiles: SentRequest[] = requests
-        .map((req) => {
-          const receiverProfile = profileMap.get(req.related_user_id);
-          if (!receiverProfile) return null;
-          return {
-            id: req.id,
-            related_user_id: req.related_user_id,
-            status: req.status,
-            created_at: req.created_at,
-            receiver_profile: receiverProfile,
-          };
-        })
-        .filter((req): req is SentRequest => req !== null);
+      // 'profile' key matches the 'other' person, which is receiver
+      const requestsWithProfiles = requests.map((req: any) => ({
+        id: req.id,
+        related_user_id: req.related_user_id,
+        status: req.status,
+        created_at: req.created_at,
+        receiver_profile: req.profile,
+      }));
 
       setSentRequests(requestsWithProfiles);
     } catch (err) {
@@ -109,27 +76,16 @@ export function PendingRequestsSection() {
 
   const handleCancelRequest = async (requestId: string, receiverName: string) => {
     try {
-      const { error } = await supabase
-        .from('relationships')
-        .delete()
-        .eq('id', requestId);
-
-      if (error) {
-        toast.error(`Database Error: ${error.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
-        return;
-      }
+      await api.delete(`/relationships/${requestId}`);
 
       toast.success('Request cancelled', {
         description: `Your request to ${receiverName} has been cancelled.`,
       });
 
       fetchSentRequests();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error cancelling request:', err);
-      toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`, {
+      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });

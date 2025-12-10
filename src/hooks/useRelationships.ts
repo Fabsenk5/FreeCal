@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, Relationship, Profile } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { Relationship, Profile } from '@/lib/supabase'; // Keep these types for now or move to api.ts
 
 export interface RelationshipWithProfile extends Relationship {
   profile: Profile;
@@ -19,75 +20,12 @@ export function useRelationships() {
     }
 
     try {
-      // Fetch relationships where user is the creator or the related user
-      const { data: userRelationships, error: userRelError } = await supabase
-        .from('relationships')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('status', 'accepted');
-
-      const { data: relatedRelationships, error: relatedRelError } = await supabase
-        .from('relationships')
-        .select('*')
-        .eq('related_user_id', user.id)
-        .eq('status', 'accepted');
-
-      if (userRelError) {
-        console.error('Error fetching user relationships:', userRelError);
-        toast.error(`Database Error: ${userRelError.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
-        return;
-      }
-
-      if (relatedRelError) {
-        console.error('Error fetching related relationships:', relatedRelError);
-      }
-
-      const allRelationships = [
-        ...(userRelationships || []),
-        ...(relatedRelationships || []),
-      ];
-
-      // Get profile IDs
-      const profileIds = allRelationships.map((rel) =>
-        rel.user_id === user.id ? rel.related_user_id : rel.user_id
-      );
-
-      // Fetch profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', profileIds);
-
-      if (profilesError) {
-        console.error('Error fetching profiles:', profilesError);
-        toast.error(`Database Error: ${profilesError.message}`, {
-          description: 'Copy this error and paste in chat for help',
-          duration: 10000,
-        });
-        return;
-      }
-
-      const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
-
-      const relationshipsWithProfiles: RelationshipWithProfile[] = allRelationships
-        .map((rel) => {
-          const profileId = rel.user_id === user.id ? rel.related_user_id : rel.user_id;
-          const profile = profileMap.get(profileId);
-          if (!profile) return null;
-          return {
-            ...rel,
-            profile,
-          };
-        })
-        .filter((rel): rel is RelationshipWithProfile => rel !== null);
-
-      setRelationships(relationshipsWithProfiles);
-    } catch (err) {
+      const { data } = await api.get('/relationships?status=accepted');
+      // Backend now returns the profile joined, properly mapped.
+      setRelationships(data);
+    } catch (err: any) {
       console.error('Unexpected error fetching relationships:', err);
-      toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`, {
+      toast.error(`Error: ${err.response?.data?.message || err.message} `, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });
