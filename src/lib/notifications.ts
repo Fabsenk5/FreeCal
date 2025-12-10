@@ -8,7 +8,7 @@
  * - Event invitation
  */
 
-import { supabase } from './supabase';
+// import { supabase } from './supabase'; // REMOVED
 
 export interface EmailNotification {
   to: string;
@@ -25,14 +25,14 @@ export async function sendEmailNotification(notification: EmailNotification) {
   try {
     // For now, we'll use Supabase's built-in auth emails
     // To send custom emails, you would deploy a Supabase Edge Function
-    
+
     console.log('📧 Email notification would be sent:', notification);
-    
+
     // TODO: Deploy Edge Function for custom emails
     // const { data, error } = await supabase.functions.invoke('send-email', {
     //   body: notification
     // });
-    
+
     return { success: true };
   } catch (error) {
     console.error('Email notification error:', error);

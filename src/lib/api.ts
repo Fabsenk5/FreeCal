@@ -82,3 +82,42 @@ export interface EventWithAttendees extends Event {
     creator_color?: string;
     isViewer?: boolean;
 }
+
+// Database Types (Migrated from supabase.ts)
+export interface Profile {
+  id: string;
+  email: string;
+  display_name: string;
+  avatar_url?: string | null;
+  calendar_color: string;
+  is_approved: boolean;
+  approval_status: 'pending' | 'approved' | 'rejected';
+  approved_at?: string | null;
+  approved_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Relationship {
+  id: string;
+  user_id: string;
+  related_user_id: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventAttendee {
+  id: string;
+  event_id: string;
+  user_id: string;
+  is_attendee: boolean; // Added based on new schema
+  created_at: string;
+}
+
+export interface EventViewer {
+  id: string;
+  event_id: string;
+  user_id: string;
+  created_at: string;
+}

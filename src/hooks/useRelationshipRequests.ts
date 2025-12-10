@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Relationship, Profile } from '@/lib/supabase';
+import { Relationship, Profile } from '@/lib/api';
 
 export interface RelationshipRequestWithProfile extends Relationship {
   sender_profile: Profile;

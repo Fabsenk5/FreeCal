@@ -16,7 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Check, X, ChevronDown, Loader2, Shield, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { Profile } from '@/lib/supabase'; // Keep type for now
+import { Profile } from '@/lib/api';
 
 interface PendingUser extends Profile {
   created_at: string;

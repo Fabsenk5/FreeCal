@@ -28,6 +28,9 @@ const mapUserToFrontend = (user: typeof profiles.$inferSelect) => ({
     avatar_url: user.avatarUrl,
     calendar_color: user.calendarColor,
     is_approved: user.isApproved,
+    approval_status: user.approvalStatus,
+    approved_at: user.approvedAt,
+    approved_by: user.approvedBy,
     password_hash: user.passwordHash // Optional, usually shouldn't return this but keeping for now as per simple migration
 });
 
