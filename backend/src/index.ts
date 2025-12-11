@@ -3,8 +3,30 @@ import cors from 'cors';
 import * as dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes';
 // import eventRoutes from './routes/eventRoutes'; // TODO
+import { db } from './db';
+import { sql } from 'drizzle-orm';
+
 
 dotenv.config();
+
+// Keep-alive mechanism to prevent DB sleep
+const performKeepAlive = async () => {
+    try {
+        console.log(`[${new Date().toISOString()}] Performing DB keep-alive check...`);
+        await db.execute(sql`SELECT 1`);
+        console.log(`[${new Date().toISOString()}] DB keep-alive check successful`);
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] DB keep-alive check failed:`, error);
+    }
+};
+
+// Run every 5 minutes
+const KEEP_ALIVE_INTERVAL = 5 * 60 * 1000;
+setInterval(performKeepAlive, KEEP_ALIVE_INTERVAL);
+
+// Initial check
+performKeepAlive();
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
