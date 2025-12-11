@@ -47,9 +47,34 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Initialize state from localStorage if available (Stale-While-Revalidate)
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const cached = localStorage.getItem('auth_user');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [profile, setProfile] = useState<Profile | null>(() => {
+    try {
+      const cached = localStorage.getItem('auth_profile');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // If we have cached data, we're not "loading" in the blocking sense.
+  // We'll still verify in the background.
+  const [loading, setLoading] = useState(() => {
+    // Only blocking-load if we have a token but no cached user data
+    const token = localStorage.getItem('auth_token');
+    const hasCachedData = localStorage.getItem('auth_user') && localStorage.getItem('auth_profile');
+    return !!token && !hasCachedData;
+  });
+
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
@@ -58,7 +83,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = async () => {
     const token = localStorage.getItem('auth_token');
+
+    // If no token, we are definitely logged out
     if (!token) {
+      setUser(null);
+      setProfile(null);
+      localStorage.removeItem('auth_user');
+      localStorage.removeItem('auth_profile');
       setLoading(false);
       return;
     }
@@ -66,15 +97,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // Fetch current user details
       const { data } = await api.get('/auth/me');
-      setUser(data);
 
+      // Update state
+      setUser(data);
       // In our new schema, profile and user are effectively merged or 1:1. 
-      // The API returns the profile data as 'user'.
-      // We'll map it to 'profile' state for compatibility.
       setProfile(data as Profile);
+
+      // Update cache
+      localStorage.setItem('auth_user', JSON.stringify(data));
+      localStorage.setItem('auth_profile', JSON.stringify(data));
+
     } catch (error) {
       console.error('Auth verification failed:', error);
+      // Token is invalid or expired
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      localStorage.removeItem('auth_profile');
       setUser(null);
       setProfile(null);
     } finally {
@@ -91,6 +129,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       localStorage.setItem('auth_token', data.token);
+      localStorage.setItem('auth_user', JSON.stringify(data.user));
+      localStorage.setItem('auth_profile', JSON.stringify(data.user));
+
       setUser(data.user);
       setProfile(data.user as Profile);
 
@@ -112,6 +153,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       localStorage.setItem('auth_token', data.token);
+      localStorage.setItem('auth_user', JSON.stringify(data.user));
+      localStorage.setItem('auth_profile', JSON.stringify(data.user));
+
       setUser(data.user);
       setProfile(data.user as Profile);
 
@@ -126,6 +170,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+    localStorage.removeItem('auth_profile');
     setUser(null);
     setProfile(null);
     toast.success('Signed out successfully');
@@ -136,6 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data } = await api.put('/users/profile', updates);
       setProfile(data as Profile); // Update local state
+      localStorage.setItem('auth_profile', JSON.stringify(data));
     } catch (err: any) {
       console.error('Update profile error:', err);
       toast.error('Failed to update profile');
