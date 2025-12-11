@@ -2,7 +2,8 @@
 import { useState, useMemo } from 'react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { Button } from '@/components/ui/button';
-import { Check, X, Calendar as CalendarIcon, Clock, ChevronRight, Loader2 } from 'lucide-react';
+import { Check, X, Calendar as CalendarIcon, Clock, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
+import { addDays, format, startOfDay } from 'date-fns';
 import { useEvents } from '@/hooks/useEvents';
 import { useRelationships } from '@/hooks/useRelationships';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,6 +34,11 @@ export function FreeTimeFinderV2() {
     const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
     const [selectedDay, setSelectedDay] = useState<DayAvailability | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [startDate, setStartDate] = useState<Date>(() => {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return d;
+    });
 
     // Configurable thresholds (could be moved to settings later)
     const HIGH_AVAILABILITY_THRESHOLD = 8; // Hours
@@ -61,9 +67,8 @@ export function FreeTimeFinderV2() {
         if (loading || !user) return [];
 
         const next14Days = Array.from({ length: 14 }, (_, i) => {
-            const d = new Date();
+            const d = new Date(startDate);
             d.setDate(d.getDate() + i);
-            d.setHours(0, 0, 0, 0);
             return d;
         });
 
@@ -142,7 +147,39 @@ export function FreeTimeFinderV2() {
                 slots
             };
         });
-    }, [events, selectedUsers, user]);
+    }, [events, selectedUsers, user, startDate]);
+
+    const handlePrevPeriod = () => {
+        setStartDate(prev => {
+            const d = new Date(prev);
+            d.setDate(d.getDate() - 14);
+            return d;
+        });
+    };
+
+    const handleNextPeriod = () => {
+        setStartDate(prev => {
+            const d = new Date(prev);
+            d.setDate(d.getDate() + 14);
+            return d;
+        });
+    };
+
+    const periodLabel = useMemo(() => {
+        const start = startDate;
+        const end = new Date(startDate);
+        end.setDate(end.getDate() + 13);
+
+        // Format: 11. Dec'25
+        const fmt = (d: Date) => {
+            const day = d.getDate();
+            const month = d.toLocaleDateString('en-US', { month: 'short' });
+            const year = d.getFullYear().toString().slice(2);
+            return `${day}. ${month}'${year}`;
+        };
+
+        return `${fmt(start)} to ${fmt(end)}`;
+    }, [startDate]);
 
     // Handle Create Event
     const handleCreateFromSlot = (slot: TimeSlot) => {
@@ -242,9 +279,17 @@ export function FreeTimeFinderV2() {
                 {/* 2. Heatmap Grid */}
                 <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                            Next 14 Days
-                        </h2>
+                        <div className="flex items-center gap-2">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePrevPeriod}>
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide min-w-[140px] text-center">
+                                {periodLabel}
+                            </h2>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleNextPeriod}>
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> &ge;{HIGH_AVAILABILITY_THRESHOLD}h</span>
                             <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500"></div> &lt;{HIGH_AVAILABILITY_THRESHOLD}h</span>
