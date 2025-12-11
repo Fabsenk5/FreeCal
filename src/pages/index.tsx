@@ -3,6 +3,7 @@ import { BottomNav } from '@/components/calendar/BottomNav';
 import { CalendarView } from './CalendarView';
 import { CreateEvent } from './CreateEvent';
 import { FreeTimeFinder } from './FreeTimeFinder';
+import { FreeTimeFinderV2 } from './FreeTimeFinderV2';
 import { Profile } from './Profile';
 import { Toaster } from '@/components/ui/sonner';
 import { EventWithAttendees } from '@/hooks/useEvents';
@@ -31,7 +32,7 @@ function Index() {
       case 'create':
         return <CreateEvent eventToEdit={eventToEdit} onEventSaved={handleEventSaved} />;
       case 'freetime':
-        return <FreeTimeFinder />;
+        return <FreeTimeFinderV2 />;
       case 'profile':
         return <Profile />;
       default:

@@ -1,7 +1,7 @@
-
 import { db } from '../src/db';
-import { profiles, events, relationships, eventAttendees, eventViewers } from '../src/db/schema';
+import { profiles, events, relationships, eventAttendees, eventViewers, featureWishes } from '../src/db/schema';
 import * as fs from 'fs';
+import * as path from 'path';
 import * as path from 'path';
 import { parse } from 'csv-parse/sync';
 
@@ -289,6 +289,37 @@ async function importData() {
         }
     } catch (e) {
         console.error('Error importing viewers:', e);
+    }
+
+    // 6. Feature Wishes
+    try {
+        const files = fs.readdirSync(dataDir);
+        const wishesFile = files.find(f => f.startsWith('feature_wishes') && f.endsWith('.csv'));
+        if (wishesFile) {
+            console.log(`Found wishes file: ${wishesFile}`);
+            const wishesData = readCsv(wishesFile);
+
+            const mappedWishes = [];
+            for (const w of wishesData) {
+                // Determine createdBy user
+                const creatorId = w.created_by ? getDbId(w.created_by) : null;
+
+                mappedWishes.push({
+                    id: w.id,
+                    title: w.title,
+                    status: w.status,
+                    createdAt: w.created_at ? new Date(w.created_at) : new Date(),
+                    createdBy: creatorId,
+                });
+            }
+
+            console.log(`Importing ${mappedWishes.length} wishes...`);
+            if (mappedWishes.length > 0) {
+                await db.insert(featureWishes).values(mappedWishes).onConflictDoNothing();
+            }
+        }
+    } catch (e) {
+        console.error('Error importing wishes:', e);
     }
 
     console.log('Migration complete!');

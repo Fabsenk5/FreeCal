@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getEvents, createEvent, updateEvent, deleteEvent, respondToInvite } from '../controllers/eventController';
 import { getRelationships, createRelationship, updateRelationship, deleteRelationship } from '../controllers/relationshipController';
+import { featureWishlistController } from '../controllers/featureWishlistController';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
@@ -32,5 +33,11 @@ router.get('/admin/users', getAllUsers);
 router.put('/admin/users/:id', adminUpdateUser);
 router.put('/admin/users/:id/password', adminUpdateUserPassword);
 router.delete('/admin/users/:id', adminDeleteUser);
+
+// Feature Wishlist Routes
+router.get('/feature-wishes', featureWishlistController.getAllWishes);
+router.post('/feature-wishes', featureWishlistController.createWish);
+router.put('/feature-wishes/:id/status', featureWishlistController.updateWishStatus);
+router.delete('/feature-wishes/:id', featureWishlistController.deleteWish);
 
 export default router;

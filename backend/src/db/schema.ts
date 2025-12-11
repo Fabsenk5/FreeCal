@@ -80,3 +80,12 @@ export const eventViewers = pgTable('event_viewers', {
 }, (t) => ({
     uniqueEventUserViewer: unique().on(t.eventId, t.userId),
 }));
+
+// Feature Wishes Table
+export const featureWishes = pgTable('feature_wishes', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    title: text('title').notNull(),
+    status: text('status', { enum: ['pending', 'completed'] }).default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    createdBy: uuid('created_by'), // Optional: track who created it (profile ID)
+});

@@ -31,6 +31,8 @@ import { api, User, EventWithAttendees } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
+export type { EventWithAttendees };
+
 
 
 export function useEvents() {

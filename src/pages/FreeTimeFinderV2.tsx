@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { Button } from '@/components/ui/button';
-import { Check, X, Calendar as CalendarIcon, Clock, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
+import { Check, X, Calendar as CalendarIcon, Clock, ChevronRight, ChevronLeft, Loader2, Info } from 'lucide-react';
 import { addDays, format, startOfDay } from 'date-fns';
 import { useEvents } from '@/hooks/useEvents';
 import { useRelationships } from '@/hooks/useRelationships';
@@ -229,9 +229,19 @@ export function FreeTimeFinderV2() {
                 showBack
                 onBack={() => window.location.href = '/'}
                 rightAction={
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedUsers([])}>
-                        Clear
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => window.location.href = '/free-time-v1'}
+                            className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white border-0 text-xs h-8"
+                        >
+                            Back to V1
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedUsers([])}>
+                            Clear
+                        </Button>
+                    </div>
                 }
             />
 

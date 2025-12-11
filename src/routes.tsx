@@ -8,6 +8,8 @@ import ResetPassword from '@/pages/ResetPassword';
 import { HealthCheck } from '@/pages/HealthCheck';
 import { PendingApproval } from '@/pages/PendingApproval';
 import { FreeTimeFinderV2 } from '@/pages/FreeTimeFinderV2';
+import { FeatureWishlist } from '@/pages/FeatureWishlist';
+import { FreeTimeFinder } from '@/pages/FreeTimeFinder';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 const routes = [
@@ -47,6 +49,22 @@ const routes = [
         element: (
           <ProtectedRoute>
             <FreeTimeFinderV2 />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "feature-wishlist",
+        element: (
+          <ProtectedRoute>
+            <FeatureWishlist />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "free-time-v1",
+        element: (
+          <ProtectedRoute>
+            <FreeTimeFinder />
           </ProtectedRoute>
         ),
       },

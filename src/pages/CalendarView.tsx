@@ -140,14 +140,24 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
                   </span>
                 </div>
               ))}
+
             </div>
+
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => window.location.href = '/feature-wishlist'}
+              className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white border-0 text-xs h-7 px-2"
+            >
+              Wishlist
+            </Button>
           </div>
         }
       />
 
-      <div className="flex-1 overflow-y-auto pb-20 px-4">
+      < div className="flex-1 overflow-y-auto pb-20 px-4" >
         {/* Month/Year navigation with dropdowns */}
-        <div className="flex items-center justify-between py-4 gap-4">
+        < div className="flex items-center justify-between py-4 gap-4" >
           <div className="flex items-center gap-2 flex-1">
             {/* Month Selector */}
             <Select
@@ -202,75 +212,79 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
-        </div>
+        </div >
 
         {/* Calendar */}
-        <MonthView
+        < MonthView
           year={year}
           month={month}
-          events={events.map((e) => ({
-            id: e.id,
-            title: e.title,
-            description: e.description || '',
-            startDate: new Date(e.start_time),
-            endDate: new Date(e.end_time),
-            isAllDay: e.is_all_day,
-            userId: e.user_id,
-            attendeeIds: e.attendees || [],
-            viewerIds: e.viewers || [],
-            isViewer: e.isViewer,
-            color: e.creator_color || 'hsl(217, 91%, 60%)',
-            creatorName: e.creator_name,
-            location: e.location || undefined,
-            url: e.url || undefined,
-            isTentative: e.is_tentative || false,
-            recurrence: e.recurrence_type && e.recurrence_type !== 'none' ? {
-              frequency: e.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
-              interval: e.recurrence_interval || undefined,
-              endDate: e.recurrence_end_date ? new Date(e.recurrence_end_date) : undefined,
-              daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
-            } : undefined,
-          }))}
+          events={
+            events.map((e) => ({
+              id: e.id,
+              title: e.title,
+              description: e.description || '',
+              startDate: new Date(e.start_time),
+              endDate: new Date(e.end_time),
+              isAllDay: e.is_all_day,
+              userId: e.user_id,
+              attendeeIds: e.attendees || [],
+              viewerIds: e.viewers || [],
+              isViewer: e.isViewer,
+              color: e.creator_color || 'hsl(217, 91%, 60%)',
+              creatorName: e.creator_name,
+              location: e.location || undefined,
+              url: e.url || undefined,
+              isTentative: e.is_tentative || false,
+              recurrence: e.recurrence_type && e.recurrence_type !== 'none' ? {
+                frequency: e.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
+                interval: e.recurrence_interval || undefined,
+                endDate: e.recurrence_end_date ? new Date(e.recurrence_end_date) : undefined,
+                daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
+              } : undefined,
+            }))
+          }
           selectedDate={selectedDate}
           onDateSelect={handleDateSelect}
         />
 
         {/* Events for selected date */}
-        {selectedDate && (
-          <div className="mt-6">
-            <EventList
-              date={selectedDate}
-              events={selectedDateEvents.map((e) => ({
-                id: e.id,
-                title: e.title,
-                description: e.description || '',
-                startDate: new Date(e.start_time),
-                endDate: new Date(e.end_time),
-                isAllDay: e.is_all_day,
-                userId: e.user_id,
-                attendeeIds: e.attendees || [],
-                viewerIds: e.viewers || [],
-                isViewer: e.isViewer,
-                color: e.creator_color || 'hsl(217, 91%, 60%)',
-                creatorName: e.creator_name,
-                location: e.location || undefined,
-                url: e.url || undefined,
-                isTentative: e.is_tentative || false,
-                recurrence: e.recurrence_type && e.recurrence_type !== 'none' ? {
-                  frequency: e.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
-                  interval: e.recurrence_interval || undefined,
-                  endDate: e.recurrence_end_date ? new Date(e.recurrence_end_date) : undefined,
-                  daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
-                } : undefined,
-              }))}
-              onEventClick={(event) => setSelectedEventId(event.id)}
-            />
-          </div>
-        )}
-      </div>
+        {
+          selectedDate && (
+            <div className="mt-6">
+              <EventList
+                date={selectedDate}
+                events={selectedDateEvents.map((e) => ({
+                  id: e.id,
+                  title: e.title,
+                  description: e.description || '',
+                  startDate: new Date(e.start_time),
+                  endDate: new Date(e.end_time),
+                  isAllDay: e.is_all_day,
+                  userId: e.user_id,
+                  attendeeIds: e.attendees || [],
+                  viewerIds: e.viewers || [],
+                  isViewer: e.isViewer,
+                  color: e.creator_color || 'hsl(217, 91%, 60%)',
+                  creatorName: e.creator_name,
+                  location: e.location || undefined,
+                  url: e.url || undefined,
+                  isTentative: e.is_tentative || false,
+                  recurrence: e.recurrence_type && e.recurrence_type !== 'none' ? {
+                    frequency: e.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
+                    interval: e.recurrence_interval || undefined,
+                    endDate: e.recurrence_end_date ? new Date(e.recurrence_end_date) : undefined,
+                    daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
+                  } : undefined,
+                }))}
+                onEventClick={(event) => setSelectedEventId(event.id)}
+              />
+            </div>
+          )
+        }
+      </div >
 
       {/* Event details dialog */}
-      <Dialog open={!!selectedEventId} onOpenChange={() => setSelectedEventId(null)}>
+      < Dialog open={!!selectedEventId} onOpenChange={() => setSelectedEventId(null)}>
         <DialogContent className="max-w-[90%] rounded-xl">
           <DialogHeader>
             <DialogTitle>Event Details</DialogTitle>
@@ -326,7 +340,7 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
             </div>
           )}
         </DialogContent>
-      </Dialog>
-    </div>
+      </Dialog >
+    </div >
   );
 }
