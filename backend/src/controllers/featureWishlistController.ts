@@ -20,12 +20,12 @@ export const featureWishlistController = {
         }
     },
 
-    // Create a new wish (Admin only)
+    // Create a new wish (Authenticated users)
     createWish: async (req: Request, res: Response) => {
         try {
             const user = (req as any).user;
-            if (!user || user.email !== ADMIN_EMAIL) {
-                return res.status(403).json({ message: 'Only admin can create wishes' });
+            if (!user) {
+                return res.status(401).json({ message: 'Unauthorized' });
             }
 
             const { title } = req.body;

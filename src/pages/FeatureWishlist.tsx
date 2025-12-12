@@ -114,31 +114,29 @@ export function FeatureWishlist() {
                     </p>
                 </div>
 
-                {isAdmin && (
-                    <div className="flex gap-2">
-                        <Input
-                            placeholder="Add a new feature idea..."
-                            value={newItem}
-                            onChange={(e) => setNewItem(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-                        />
-                        <Button
-                            onClick={handleAdd}
-                            disabled={isSubmitting || !newItem.trim()}
-                            className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white border-0"
-                        >
-                            <Plus className="w-4 h-4" />
-                        </Button>
-                    </div>
-                )}
+                <div className="flex gap-2">
+                    <Input
+                        placeholder="Add a new feature idea..."
+                        value={newItem}
+                        onChange={(e) => setNewItem(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                    />
+                    <Button
+                        onClick={handleAdd}
+                        disabled={isSubmitting || !newItem.trim()}
+                        className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white border-0"
+                    >
+                        <Plus className="w-4 h-4" />
+                    </Button>
+                </div>
 
                 <div className="space-y-3">
                     {wishes.map((wish) => (
                         <div
                             key={wish.id}
                             className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${wish.status === 'completed'
-                                    ? 'bg-muted/30 border-transparent opacity-70'
-                                    : 'bg-card border-border'
+                                ? 'bg-muted/30 border-transparent opacity-70'
+                                : 'bg-card border-border'
                                 }`}
                         >
                             <button
