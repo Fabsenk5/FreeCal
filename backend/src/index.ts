@@ -9,12 +9,13 @@ import { sql } from 'drizzle-orm';
 
 dotenv.config();
 
-// Keep-alive mechanism to prevent DB sleep
+// Keep-alive mechanism to prevent DB sleep (and keep Events table warm)
 const performKeepAlive = async () => {
     try {
         console.log(`[${new Date().toISOString()}] Performing DB keep-alive check...`);
-        await db.execute(sql`SELECT 1`);
-        console.log(`[${new Date().toISOString()}] DB keep-alive check successful`);
+        // Query events table to keep it warm/cached in memory if possible
+        await db.execute(sql`SELECT count(*) FROM events`);
+        console.log(`[${new Date().toISOString()}] DB keep-alive (Events table) check successful`);
     } catch (error) {
         console.error(`[${new Date().toISOString()}] DB keep-alive check failed:`, error);
     }

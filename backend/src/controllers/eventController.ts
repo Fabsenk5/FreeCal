@@ -34,24 +34,68 @@ export const getEvents = async (req: Request & { user?: any }, res: Response) =>
         // 2. Fetch Events
         const eventsList = await db.select().from(events).where(inArray(events.id, uniqueIds));
 
-        // 3. Fetch Creator Profiles, Attendees, and Viewers for these events
-        // This is "N+1" simulation but safer to write manually without complex relational setup right now.
+        // 3. Batched Fetch for Related Data
 
-        const results = await Promise.all(eventsList.map(async (event) => {
-            // Fetch Creator
-            const [creator] = await db.select().from(profiles).where(eq(profiles.id, event.userId));
+        // Fetch ALL Attendees for these events
+        const allAttendees = await db.select()
+            .from(eventAttendees)
+            .where(inArray(eventAttendees.eventId, uniqueIds));
 
-            // Fetch Attendees with Status
-            const attendeesList = await db.select().from(eventAttendees).where(eq(eventAttendees.eventId, event.id));
-            const attendeeIds = attendeesList.map(a => a.userId);
-            const attendeesWithStatus = attendeesList.map(a => ({ userId: a.userId, status: a.status }));
+        // Fetch ALL Viewers for these events
+        const allViewers = await db.select()
+            .from(eventViewers)
+            .where(inArray(eventViewers.eventId, uniqueIds));
 
-            // Fetch Viewers
-            const viewers = await db.select().from(eventViewers).where(eq(eventViewers.eventId, event.id));
-            const viewerIds = viewers.map(v => v.userId);
+        // Collect all User IDs to fetch profiles (creators + attendees + viewers)
+        const userIdsToFetch = new Set<string>();
+
+        eventsList.forEach(e => userIdsToFetch.add(e.userId)); // Creators
+        allAttendees.forEach(a => userIdsToFetch.add(a.userId)); // Attendees
+        // Note: we might want viewer profiles too if we display them, but currently mostly used for logic. 
+        // Adding them just in case or if UI needs it later.
+        allViewers.forEach(v => userIdsToFetch.add(v.userId));
+
+        const uniqueUserIds = [...userIdsToFetch];
+
+        // Fetch ALL Profiles
+        const allProfiles = uniqueUserIds.length > 0
+            ? await db.select().from(profiles).where(inArray(profiles.id, uniqueUserIds))
+            : [];
+
+        // Create Maps for O(1) lookup
+        const profilesMap = new Map(allProfiles.map(p => [p.id, p]));
+
+        // Group attendees by event
+        const attendeesByEvent = new Map<string, typeof allAttendees>();
+        allAttendees.forEach(a => {
+            if (!attendeesByEvent.has(a.eventId)) attendeesByEvent.set(a.eventId, []);
+            attendeesByEvent.get(a.eventId)?.push(a);
+        });
+
+        // Group viewers by event
+        const viewersByEvent = new Map<string, typeof allViewers>();
+        allViewers.forEach(v => {
+            if (!viewersByEvent.has(v.eventId)) viewersByEvent.set(v.eventId, []);
+            viewersByEvent.get(v.eventId)?.push(v);
+        });
+
+        // 4. Map data back to events
+        const results = eventsList.map((event) => {
+            const creator = profilesMap.get(event.userId);
+            const eventAttendeesList = attendeesByEvent.get(event.id) || [];
+            const eventViewersList = viewersByEvent.get(event.id) || [];
+
+            const attendeeIds = eventAttendeesList.map(a => a.userId);
+            const viewerIds = eventViewersList.map(v => v.userId);
+
+            const attendeesWithStatus = eventAttendeesList.map(a => ({
+                userId: a.userId,
+                status: a.status as 'pending' | 'accepted' | 'declined'
+            }));
 
             const isCreator = event.userId === userId;
             const isAttendee = attendeeIds.includes(userId);
+            // Logic check: verify if viewer AND NOT creator/attendee
             const isViewer = viewerIds.includes(userId) && !isCreator && !isAttendee;
 
             return {
@@ -76,7 +120,7 @@ export const getEvents = async (req: Request & { user?: any }, res: Response) =>
                 travel_time: event.travelTime,
                 original_calendar_id: event.originalCalendarId,
                 attendees: attendeeIds,
-                attendees_details: attendeesWithStatus, // New field
+                attendees_details: attendeesWithStatus,
                 viewers: viewerIds,
                 creator_name: creator?.displayName,
                 creator_color: creator?.calendarColor,
@@ -84,7 +128,7 @@ export const getEvents = async (req: Request & { user?: any }, res: Response) =>
                 created_at: event.createdAt?.toISOString(),
                 updated_at: event.updatedAt?.toISOString(),
             };
-        }));
+        });
 
         res.json(results);
     } catch (error) {
