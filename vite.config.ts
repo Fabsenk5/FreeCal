@@ -36,6 +36,10 @@ export default defineConfig(({ mode }) => ({
             purpose: "any maskable"
           }
         ]
+      },
+      devOptions: {
+        enabled: true,
+        type: 'module', // uses module syntax for service worker in dev
       }
     })
   ].filter(Boolean),
