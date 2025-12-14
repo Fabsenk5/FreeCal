@@ -107,14 +107,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('auth_user', JSON.stringify(data));
       localStorage.setItem('auth_profile', JSON.stringify(data));
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Auth verification failed:', error);
-      // Token is invalid or expired
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      localStorage.removeItem('auth_profile');
-      setUser(null);
-      setProfile(null);
+
+      // Only log out if it's explicitly an Auth error (401/403)
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+        localStorage.removeItem('auth_profile');
+        setUser(null);
+        setProfile(null);
+      } else {
+        // For 500s, Network Errors, Timeouts:
+        // KEEP the local session. Do NOT log out.
+        // User continues using cached data.
+        console.warn('Server unreachable or error, keeping local session active.');
+        // Optional: notification if we want to be noisy
+        // toast.error('Check your connection', { description: 'Offline mode active', duration: 3000 });
+      }
     } finally {
       setLoading(false);
     }
