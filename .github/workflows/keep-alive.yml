@@ -10,8 +10,12 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Health Endpoint
+      - name: Ping Render Backend
         run: |
-          curl -I https://freecal.vercel.app/health || echo "Ping failed"
-          # Also ping API health just in case routing differs
-          curl -I https://freecal.vercel.app/api/health || echo "API Ping failed"
+          echo "Pinging Render backend to prevent cold start..."
+          curl -s -o /dev/null -w "Backend: %{http_code} in %{time_total}s\n" https://freecal.onrender.com/health || echo "Backend ping failed"
+          
+      - name: Ping Vercel Frontend (optional)
+        run: |
+          echo "Pinging Vercel frontend..."
+          curl -s -o /dev/null -w "Frontend: %{http_code} in %{time_total}s\n" https://freecal.vercel.app/ || echo "Frontend ping failed"
