@@ -5,10 +5,11 @@ import { CreateEvent } from './CreateEvent';
 import { FreeTimeFinder } from './FreeTimeFinder';
 import { FreeTimeFinderV2 } from './FreeTimeFinderV2';
 import { Profile } from './Profile';
+import { WorldMap } from './WorldMap';
 import { Toaster } from '@/components/ui/sonner';
 import { EventWithAttendees } from '@/hooks/useEvents';
 
-type ActiveTab = 'calendar' | 'create' | 'freetime' | 'profile';
+type ActiveTab = 'calendar' | 'create' | 'worldmap' | 'freetime' | 'profile';
 
 function Index() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('calendar');
@@ -31,6 +32,8 @@ function Index() {
         return <CalendarView onEditEvent={handleEditEvent} />;
       case 'create':
         return <CreateEvent eventToEdit={eventToEdit} onEventSaved={handleEventSaved} />;
+      case 'worldmap':
+        return <WorldMap />;
       case 'freetime':
         return <FreeTimeFinderV2 />;
       case 'profile':

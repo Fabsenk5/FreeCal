@@ -89,3 +89,20 @@ export const featureWishes = pgTable('feature_wishes', {
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
     createdBy: uuid('created_by'), // Optional: track who created it (profile ID)
 });
+
+// Travel Locations Table (World Map Feature)
+export const travelLocations = pgTable('travel_locations', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    latitude: text('latitude').notNull(), // Stored as text for precision, parsed on read
+    longitude: text('longitude').notNull(),
+    country: text('country'),
+    city: text('city'),
+    visitedDate: timestamp('visited_date', { withTimezone: true }),
+    withRelationshipId: uuid('with_relationship_id').references(() => profiles.id, { onDelete: 'set null' }),
+    isWishlist: boolean('is_wishlist').default(false),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});

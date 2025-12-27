@@ -40,4 +40,12 @@ router.post('/feature-wishes', featureWishlistController.createWish);
 router.put('/feature-wishes/:id/status', featureWishlistController.updateWishStatus);
 router.delete('/feature-wishes/:id', featureWishlistController.deleteWish);
 
+// Travel Locations (World Map)
+import { travelLocationController } from '../controllers/travelLocationController';
+
+router.get('/travel-locations', travelLocationController.getLocations);
+router.post('/travel-locations', travelLocationController.createLocation);
+router.put('/travel-locations/:id', travelLocationController.updateLocation);
+router.delete('/travel-locations/:id', travelLocationController.deleteLocation);
+
 export default router;

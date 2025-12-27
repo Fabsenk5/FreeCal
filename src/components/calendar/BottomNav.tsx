@@ -1,15 +1,16 @@
-import { Calendar, Plus, Clock, User } from 'lucide-react';
+import { Calendar, Plus, Clock, User, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface BottomNavProps {
-  activeTab: 'calendar' | 'create' | 'freetime' | 'profile';
-  onTabChange: (tab: 'calendar' | 'create' | 'freetime' | 'profile') => void;
+  activeTab: 'calendar' | 'create' | 'worldmap' | 'freetime' | 'profile';
+  onTabChange: (tab: 'calendar' | 'create' | 'worldmap' | 'freetime' | 'profile') => void;
 }
 
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   const tabs = [
     { id: 'calendar' as const, label: 'Calendar', icon: Calendar },
     { id: 'create' as const, label: 'Create', icon: Plus },
+    { id: 'worldmap' as const, label: 'Map', icon: Globe },
     { id: 'freetime' as const, label: 'Free Time', icon: Clock },
     { id: 'profile' as const, label: 'Profile', icon: User },
   ];
@@ -20,7 +21,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
-          
+
           return (
             <button
               key={tab.id}

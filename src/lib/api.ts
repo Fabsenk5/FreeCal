@@ -123,3 +123,25 @@ export interface EventViewer {
     user_id: string;
     created_at: string;
 }
+
+// Travel Location (World Map Feature)
+export interface TravelLocation {
+    id: string;
+    userId: string;
+    name: string;
+    latitude: string;
+    longitude: string;
+    country?: string | null;
+    city?: string | null;
+    visitedDate?: string | null;
+    withRelationshipId?: string | null;
+    isWishlist: boolean;
+    notes?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    // Enriched fields from backend
+    isOwn?: boolean;
+    ownerName?: string;
+    ownerColor?: string;
+    withRelationshipName?: string | null;
+}
