@@ -5,6 +5,7 @@ import authRoutes from './routes/authRoutes';
 // import eventRoutes from './routes/eventRoutes'; // TODO
 import { db } from './db';
 import { sql } from 'drizzle-orm';
+import { warmUpPool, pingDatabase } from './db/connectionPool';
 
 
 dotenv.config();
@@ -13,19 +14,24 @@ dotenv.config();
 const performKeepAlive = async () => {
     try {
         console.log(`[${new Date().toISOString()}] Performing DB keep-alive check...`);
-        // Query events table to keep it warm/cached in memory if possible
-        await db.execute(sql`SELECT count(*) FROM events`);
-        console.log(`[${new Date().toISOString()}] DB keep-alive (Events table) check successful`);
+        // Simple ping to keep connection alive
+        await db.execute(sql`SELECT 1`);
+        console.log(`[${new Date().toISOString()}] DB keep-alive check successful`);
     } catch (error) {
         console.error(`[${new Date().toISOString()}] DB keep-alive check failed:`, error);
     }
 };
 
-// Run every 5 minutes
-const KEEP_ALIVE_INTERVAL = 5 * 60 * 1000;
+// Run every 4 minutes (less than Neon's 5min timeout)
+const KEEP_ALIVE_INTERVAL = 4 * 60 * 1000;
 setInterval(performKeepAlive, KEEP_ALIVE_INTERVAL);
 
-// Initial check
+// Warm up the connection pool on startup
+warmUpPool().then(() => {
+    console.log('[Server] Database connection pool ready');
+});
+
+// Initial keep-alive check
 performKeepAlive();
 
 
@@ -51,8 +57,20 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 import apiRoutes from './routes/apiRoutes';
 app.use('/api', apiRoutes);
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok' });
+
+// Enhanced health endpoint with DB validation
+app.get('/health', async (req, res) => {
+    const startTime = Date.now();
+    const dbAlive = await pingDatabase();
+    const responseTime = Date.now() - startTime;
+
+    res.json({
+        status: 'ok',
+        database: dbAlive ? 'connected' : 'error',
+        uptime: process.uptime(),
+        responseTime: `${responseTime}ms`,
+        timestamp: new Date().toISOString()
+    });
 });
 
 app.listen(PORT, () => {

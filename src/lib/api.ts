@@ -1,11 +1,26 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
 // Environment variable for API URL (Render/Local)
 const envUrl = import.meta.env.VITE_API_URL;
 const API_URL = envUrl ? (envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`) : 'http://localhost:3000/api';
 
+// Helper to detect if error is a network timeout or server cold start
+export const isNetworkTimeout = (error: any): boolean => {
+    return (
+        error.code === 'ECONNABORTED' || // Axios timeout
+        error.code === 'ERR_NETWORK' || // Network error
+        !error.response // No response from server
+    );
+};
+
+// Helper for exponential backoff delay
+const getRetryDelay = (retryCount: number): number => {
+    return Math.min(1000 * Math.pow(2, retryCount), 10000); // Max 10s
+};
+
 export const api = axios.create({
     baseURL: API_URL,
+    timeout: 90000, // 90 seconds to handle cold starts
     headers: {
         'Content-Type': 'application/json',
     },
@@ -20,15 +35,39 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
-// Handle 401 (Unauthorized) - Redirect to login
+// Retry logic for timeouts and network errors
 api.interceptors.response.use(
     (response) => response,
-    (error) => {
-        // If 401 and NOT from the login endpoint itself (to avoid loop/refresh on failed login)
-        if (error.response?.status === 401 && !error.config.url?.includes('/auth/login')) {
+    async (error: AxiosError) => {
+        const config = error.config as any;
+
+        // Initialize retry count
+        if (!config._retryCount) {
+            config._retryCount = 0;
+        }
+
+        // Retry on network timeouts (cold start likely) - max 3 attempts
+        if (isNetworkTimeout(error) && config._retryCount < 3) {
+            config._retryCount += 1;
+            const delay = getRetryDelay(config._retryCount);
+
+            console.log(`[API] Retry attempt ${config._retryCount}/3 after ${delay}ms (possible cold start)`);
+
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, delay));
+
+            return api.request(config);
+        }
+
+        // Handle 401 (Unauthorized) - Redirect to login
+        // Only logout on explicit auth failure, NOT on timeouts
+        if (error.response?.status === 401 && !config.url?.includes('/auth/login')) {
             localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_user');
+            localStorage.removeItem('auth_profile');
             window.location.href = '/login';
         }
+
         return Promise.reject(error);
     }
 );

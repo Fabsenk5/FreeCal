@@ -14,6 +14,42 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+
+      // Workbox runtime caching for offline support
+      workbox: {
+        runtimeCaching: [
+          {
+            // Cache auth endpoints with NetworkFirst strategy
+            urlPattern: /^https?:\/\/.*\/api\/auth\/me$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'auth-cache',
+              networkTimeoutSeconds: 30, // Wait 30s for network, then use cache
+              expiration: {
+                maxEntries: 1,
+                maxAgeSeconds: 60 * 60, // 1 hour
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            // Cache API responses with NetworkFirst
+            urlPattern: /^https?:\/\/.*\/api\/.*/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              networkTimeoutSeconds: 30,
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 5 * 60, // 5 minutes
+              },
+            },
+          },
+        ],
+      },
+
       manifest: {
         name: "FreeCal - Calendar to find shared freedom",
         short_name: "FreeCal",

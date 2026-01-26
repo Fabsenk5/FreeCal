@@ -21,6 +21,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { api, User } from '@/lib/api';
 import { toast } from 'sonner';
 import { WelcomeDialog } from '@/components/WelcomeDialog';
+import { ColdStartLoader } from '@/components/ColdStartLoader';
 // import { notifyAdminNewUser } from '@/lib/notifications'; // TODO: Implement backend notification
 
 // Re-export Profile type helper for compatibility, though we should transition to API types
@@ -76,6 +77,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [showWelcome, setShowWelcome] = useState(false);
+  const [isColdStart, setIsColdStart] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   useEffect(() => {
     checkAuth();
@@ -95,7 +98,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      // Fetch current user details
+      // Detect if this is likely a cold start (first check in awhile)
+      const lastCheck = localStorage.getItem('last_auth_check');
+      const now = Date.now();
+      if (!lastCheck || now - parseInt(lastCheck) > 15 * 60 * 1000) {
+        // More than 15 minutes since last check = possible cold start
+        setIsColdStart(true);
+      }
+      localStorage.setItem('last_auth_check', now.toString());
+
+      // Fetch current user details (api.ts will handle retries automatically)
       const { data } = await api.get('/auth/me');
 
       // Update state
@@ -107,8 +119,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('auth_user', JSON.stringify(data));
       localStorage.setItem('auth_profile', JSON.stringify(data));
 
+      // Success - reset cold start indicators
+      setIsColdStart(false);
+      setRetryAttempt(0);
+
     } catch (error: any) {
       console.error('Auth verification failed:', error);
+
+      // Import the helper from api.ts
+      const isTimeout = !error.response && (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK');
 
       // Only log out if it's explicitly an Auth error (401/403)
       if (error.response?.status === 401 || error.response?.status === 403) {
@@ -117,13 +136,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('auth_profile');
         setUser(null);
         setProfile(null);
+        setIsColdStart(false);
+      } else if (isTimeout) {
+        // For timeouts: Keep session active, show cold start message
+        console.warn('Server timeout (likely cold start), keeping local session active.');
+        // The retry is handled by api.ts interceptor
+        // Just track attempt for UI
+        setRetryAttempt((prev) => prev + 1);
       } else {
-        // For 500s, Network Errors, Timeouts:
+        // For 500s, Other Network Errors:
         // KEEP the local session. Do NOT log out.
         // User continues using cached data.
         console.warn('Server unreachable or error, keeping local session active.');
-        // Optional: notification if we want to be noisy
-        // toast.error('Check your connection', { description: 'Offline mode active', duration: 3000 });
       }
     } finally {
       setLoading(false);
@@ -212,7 +236,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {/* Show cold start loader if we detect a cold start and we're loading */}
+      {isColdStart && loading ? (
+        <ColdStartLoader
+          message="Waking up server..."
+          retryAttempt={retryAttempt}
+          maxRetries={3}
+        />
+      ) : (
+        children
+      )}
       <WelcomeDialog open={showWelcome} onClose={() => setShowWelcome(false)} />
     </AuthContext.Provider>
   );
