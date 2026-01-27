@@ -14,24 +14,31 @@ type ActiveTab = 'calendar' | 'create' | 'worldmap' | 'freetime' | 'profile';
 function Index() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('calendar');
   const [eventToEdit, setEventToEdit] = useState<EventWithAttendees | null>(null);
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | null>(null);
 
   const handleEditEvent = (event: EventWithAttendees) => {
     console.log('Index: Setting event to edit:', event);
     setEventToEdit(event);
+    setSelectedCalendarDate(null); // Clear selected date when editing
     setActiveTab('create');
   };
 
   const handleEventSaved = () => {
     setEventToEdit(null);
+    setSelectedCalendarDate(null); // Clear selected date after save
     setActiveTab('calendar');
+  };
+
+  const handleCalendarDateChange = (date: Date | null) => {
+    setSelectedCalendarDate(date);
   };
 
   const renderContent = () => {
     switch (activeTab) {
       case 'calendar':
-        return <CalendarView onEditEvent={handleEditEvent} />;
+        return <CalendarView onEditEvent={handleEditEvent} onSelectedDateChange={handleCalendarDateChange} />;
       case 'create':
-        return <CreateEvent eventToEdit={eventToEdit} onEventSaved={handleEventSaved} />;
+        return <CreateEvent eventToEdit={eventToEdit} onEventSaved={handleEventSaved} initialDate={selectedCalendarDate} />;
       case 'worldmap':
         return <WorldMap />;
       case 'freetime':
@@ -39,7 +46,7 @@ function Index() {
       case 'profile':
         return <Profile />;
       default:
-        return <CalendarView onEditEvent={handleEditEvent} />;
+        return <CalendarView onEditEvent={handleEditEvent} onSelectedDateChange={handleCalendarDateChange} />;
     }
   };
 

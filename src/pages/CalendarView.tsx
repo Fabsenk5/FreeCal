@@ -15,7 +15,13 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
-export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithAttendees) => void }) {
+export function CalendarView({
+  onEditEvent,
+  onSelectedDateChange
+}: {
+  onEditEvent?: (event: EventWithAttendees) => void;
+  onSelectedDateChange?: (date: Date | null) => void;
+}) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -37,6 +43,7 @@ export function CalendarView({ onEditEvent }: { onEditEvent?: (event: EventWithA
 
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
+    onSelectedDateChange?.(date); // Notify parent of date selection
   };
 
   const selectedEvent = events.find((e) => e.id === selectedEventId);
