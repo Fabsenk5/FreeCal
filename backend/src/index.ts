@@ -22,8 +22,8 @@ const performKeepAlive = async () => {
     }
 };
 
-// Run every 4 minutes (less than Neon's 5min timeout)
-const KEEP_ALIVE_INTERVAL = 4 * 60 * 1000;
+// Run every 14 minutes (keeps Render awake, but allows Neon to sleep)
+const KEEP_ALIVE_INTERVAL = 14 * 60 * 1000;
 setInterval(performKeepAlive, KEEP_ALIVE_INTERVAL);
 
 // Warm up the connection pool on startup
