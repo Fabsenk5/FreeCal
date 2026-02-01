@@ -71,10 +71,9 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
 
   // Helper: Format date for input type="date" (YYYY-MM-DD) using LOCAL time
   const formatDateForInput = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().split('T')[0];
   };
 
   // Helper: Suggest appropriate start time based on current time
