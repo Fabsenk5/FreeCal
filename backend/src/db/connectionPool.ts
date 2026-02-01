@@ -16,7 +16,7 @@ const poolConfig: PoolConfig = {
     max: 5, // Maximum 5 connections
     min: 1, // Keep at least 1 connection warm
 
-    // Connection timeout and retry
+    // Pool timeout settings
     connectionTimeoutMillis: 30000, // 30s to allow for cold start
     idleTimeoutMillis: 30000, // Close idle connections after 30s
 
@@ -30,6 +30,21 @@ const poolConfig: PoolConfig = {
     // Query timeout
     query_timeout: 30000,
 };
+
+/* 
+// --- SUPABASE CONFIGURATION (Uncomment to switch) ---
+// const poolConfig: PoolConfig = {
+//     connectionString: process.env.DATABASE_URL,
+//     
+//     // Supabase Transaction Pooler (Port 6543) Settings
+//     // Transaction mode handles connections efficiently, so we disable keep-alive and allow smaller/zero min pool
+//     max: 10,
+//     min: 0,
+//     connectionTimeoutMillis: 30000,
+//     idleTimeoutMillis: 60000,
+//     ssl: { rejectUnauthorized: false } // Required for Supabase
+// };
+*/
 
 // Create the pool
 export const pool = new Pool(poolConfig);

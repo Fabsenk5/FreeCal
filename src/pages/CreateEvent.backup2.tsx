@@ -19,10 +19,9 @@ import { OCREventData } from '@/utils/calendarOCR';
 interface CreateEventProps {
   eventToEdit?: EventWithAttendees | null;
   onEventSaved?: () => void;
-  initialDate?: Date | null; // NEW: Pre-fill date from calendar selection
 }
 
-export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEventProps) {
+export function CreateEvent({ eventToEdit, onEventSaved }: CreateEventProps) {
   const { user, profile } = useAuth();
   const { relationships, loading: relLoading } = useRelationships();
 
@@ -67,45 +66,6 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
     }
 
     return `${hours.toString().padStart(2, '0')}:${minutes}`;
-  };
-
-  // Helper: Format date for input type="date" (YYYY-MM-DD) using LOCAL time
-  const formatDateForInput = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  // Helper: Suggest appropriate start time based on current time
-  const suggestStartTime = (now: Date): string => {
-    const hour = now.getHours();
-    const minutes = now.getMinutes();
-
-    // Round up to next hour or half-hour
-    let suggestedHour = hour;
-    let suggestedMin = 0;
-
-    if (minutes > 45) {
-      suggestedHour = hour + 1;
-    } else if (minutes > 15) {
-      suggestedMin = 30;
-    }
-
-    // Cap at 23:30 to avoid overflow
-    if (suggestedHour >= 24) {
-      suggestedHour = 23;
-      suggestedMin = 30;
-    }
-
-    return `${String(suggestedHour).padStart(2, '0')}:${String(suggestedMin).padStart(2, '0')}`;
-  };
-
-  // Helper: Add hours to time string (HH:MM format)
-  const addHours = (timeStr: string, hours: number): string => {
-    const [h, m] = timeStr.split(':').map(Number);
-    const newHour = (h + hours) % 24;
-    return `${String(newHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   };
 
   // FIXED: Load event data from prop when editing
@@ -183,73 +143,6 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
     window.addEventListener('navigateToCreateEvent', handlePrefill);
     return () => window.removeEventListener('navigateToCreateEvent', handlePrefill);
   }, []);
-
-  // NEW: Smart date/time prefilling from initialDate or today
-  useEffect(() => {
-    // Only run for new events (not editing)
-    if (eventToEdit) return;
-
-    // Check if we already have a date set (from Free Time Finder or previous interaction)
-    const hasExistingDate = startDate && startDate !== '';
-    if (hasExistingDate) return;
-
-    const now = new Date();
-
-    if (initialDate) {
-      // Use provided initial date from calendar selection
-      const dateStr = formatDateForInput(initialDate);
-      setStartDate(dateStr);
-      setEndDate(dateStr); // Auto-set end date to same day
-
-      // Suggest smart time if not all-day
-      if (!isAllDay) {
-        const suggestedTime = suggestStartTime(now);
-        setStartTime(suggestedTime);
-        setEndTime(addHours(suggestedTime, 1)); // +1 hour default duration
-      }
-
-      toast.info('Creating event', {
-        description: `Pre-filled for ${initialDate.toLocaleDateString()}`,
-        duration: 3000,
-      });
-    } else {
-      // Default to today if no date set
-      const today = formatDateForInput(now);
-      setStartDate(today);
-      setEndDate(today);
-
-      // Suggest smart time
-      if (!isAllDay) {
-        const suggestedTime = suggestStartTime(now);
-        setStartTime(suggestedTime);
-        setEndTime(addHours(suggestedTime, 1));
-      }
-    }
-  }, [initialDate, eventToEdit, isAllDay]); // Re-run if initialDate changes
-
-  // Auto-update end date when start date changes
-  useEffect(() => {
-    // Skip if editing event (preserve original dates)
-    if (eventToEdit) return;
-
-    // If user changes start date and end date is empty or before start date,
-    // auto-update end date to match new start date
-    if (startDate && (!endDate || endDate < startDate)) {
-      setEndDate(startDate);
-    }
-  }, [startDate, eventToEdit]);
-
-  // Auto-update end time when start time changes
-  useEffect(() => {
-    // Skip if editing event or all-day event
-    if (eventToEdit || isAllDay) return;
-
-    // If user sets start time and no end time yet, suggest +1 hour
-    if (startTime && !endTime) {
-      const endTimeSuggestion = addHours(startTime, 1);
-      setEndTime(endTimeSuggestion);
-    }
-  }, [startTime, isAllDay, eventToEdit]);
 
   const handleImportCalendar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.currentTarget.files?.[0];
@@ -351,57 +244,6 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
 
   const handleSelectICS = () => {
     icsFileInputRef.current?.click();
-  };
-
-  // NEW: Apply quick template presets
-  const applyTemplate = (template: string) => {
-    const baseDate = startDate || formatDateForInput(new Date());
-    const now = new Date();
-
-    switch (template) {
-      case '1h-meeting':
-        setStartDate(baseDate);
-        setEndDate(baseDate);
-        setStartTime(startTime || suggestStartTime(now));
-        setEndTime(addHours(startTime || suggestStartTime(now), 1));
-        setIsAllDay(false);
-        toast.success('Template applied: 1-hour meeting');
-        break;
-
-      case 'all-day':
-        setStartDate(baseDate);
-        setEndDate(baseDate);
-        setIsAllDay(true);
-        setStartTime('');
-        setEndTime('');
-        toast.success('Template applied: All-day event');
-        break;
-
-      case 'lunch':
-        setStartDate(baseDate);
-        setEndDate(baseDate);
-        setStartTime('12:00');
-        setEndTime('13:00');
-        setIsAllDay(false);
-        if (!title) setTitle('Lunch');
-        toast.success('Template applied: Lunch break');
-        break;
-
-      case 'recurring-weekly':
-        setStartDate(baseDate);
-        setEndDate(baseDate);
-        setRecurrenceType('weekly');
-        const dayOfWeek = new Date(baseDate).getDay();
-        setRecurrenceDays([dayOfWeek.toString()]);
-        setIsAllDay(false);
-        setStartTime(startTime || suggestStartTime(now));
-        setEndTime(addHours(startTime || suggestStartTime(now), 1));
-        toast.success('Template applied: Weekly recurring');
-        break;
-
-      default:
-        break;
-    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -637,51 +479,6 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
 
       <div className="flex-1 overflow-y-auto pb-24 px-4">
         <form onSubmit={handleSave} className="space-y-6 py-4">
-          {/* Quick Templates - Only show for new events */}
-          {!editingEventId && (
-            <div className="bg-muted/30 rounded-lg p-4">
-              <Label className="text-sm font-medium mb-3 block">Quick Templates</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => applyTemplate('1h-meeting')}
-                  className="text-xs h-9"
-                >
-                  ⏱️ 1h Meeting
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => applyTemplate('all-day')}
-                  className="text-xs h-9"
-                >
-                  📅 All Day
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => applyTemplate('lunch')}
-                  className="text-xs h-9"
-                >
-                  🍽️ Lunch (1h)
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => applyTemplate('recurring-weekly')}
-                  className="text-xs h-9"
-                >
-                  🔄 Weekly
-                </Button>
-              </div>
-            </div>
-          )}
-
           {/* Title */}
           <div className="space-y-2">
             <Label htmlFor="title">Event Title</Label>

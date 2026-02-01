@@ -8,5 +8,6 @@ export default defineConfig({
     dialect: 'postgresql',
     dbCredentials: {
         url: process.env.DATABASE_URL!,
+        // ssl: 'allow', // Uncomment for Supabase if needed (though usually handled by connection string or defaults)
     },
 });
