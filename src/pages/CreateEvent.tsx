@@ -7,7 +7,8 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useRelationships } from '@/hooks/useRelationships';
-import { Calendar, Upload, Loader2 } from 'lucide-react';
+import { useEvents } from '@/hooks/useEvents';
+import { Calendar, Upload, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { api, EventWithAttendees } from '@/lib/api';
@@ -25,6 +26,7 @@ interface CreateEventProps {
 export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEventProps) {
   const { user, profile } = useAuth();
   const { relationships, loading: relLoading } = useRelationships();
+  const { events } = useEvents();
 
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventColor, setEventColor] = useState<string>(profile?.calendar_color || 'hsl(217, 91%, 60%)');
@@ -50,6 +52,8 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
   const [showScreenshotDialog, setShowScreenshotDialog] = useState(false);
   const [sharingStatus, setSharingStatus] = useState<Record<string, 'attendee' | 'viewer' | 'none'>>({});
   const [attendeeStatuses, setAttendeeStatuses] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [conflictingEvents, setConflictingEvents] = useState<EventWithAttendees[]>([]);
 
   // Convert 12-hour time format to 24-hour
   const convertTo24Hour = (time12: string): string => {
@@ -226,6 +230,105 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
     }
   }, [initialDate, eventToEdit, isAllDay]); // Re-run if initialDate changes
 
+  // Draft Auto-Save Logic
+  useEffect(() => {
+    // Check for draft on mount (only for new events)
+    if (!eventToEdit && !initialDate) {
+      const savedDraft = localStorage.getItem('freecal_event_draft');
+      if (savedDraft) {
+        try {
+          const draft = JSON.parse(savedDraft);
+          // Check if draft is recent (optional, but good practice)? skipping for now
+
+          toast('Unsaved draft found', {
+            description: `Title: ${draft.title || '(No Title)'}`,
+            action: {
+              label: 'Restore',
+              onClick: () => {
+                setTitle(draft.title || '');
+                setNotes(draft.notes || '');
+                setStartDate(draft.startDate || '');
+                setEndDate(draft.endDate || '');
+                setStartTime(draft.startTime || '');
+                setEndTime(draft.endTime || '');
+                setIsAllDay(draft.isAllDay || false);
+                setLocation(draft.location || '');
+                setEventUrl(draft.eventUrl || '');
+                setRecurrenceType(draft.recurrenceType || 'none');
+                setRecurrenceDays(draft.recurrenceDays || []);
+                setRecurrenceInterval(draft.recurrenceInterval || 1);
+                setAttendees(draft.attendees || []);
+                setViewers(draft.viewers || []);
+                toast.success('Draft restored!');
+              }
+            },
+            duration: 8000,
+          });
+        } catch (e) {
+          console.error('Failed to parse draft', e);
+        }
+      }
+    }
+  }, [eventToEdit, initialDate]);
+
+  useEffect(() => {
+    // Don't auto-save if editing an existing event or if strict initialDate is present (maybe?)
+    if (eventToEdit) return;
+
+    const draftData = {
+      title, notes, startDate, endDate, startTime, endTime, isAllDay,
+      location, eventUrl, recurrenceType, recurrenceDays, recurrenceInterval,
+      attendees, viewers
+    };
+
+    // Debounce save
+    const timer = setTimeout(() => {
+      // Only save if there is some data
+      if (title || notes || location || attendees.length > 0) {
+        localStorage.setItem('freecal_event_draft', JSON.stringify(draftData));
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [title, notes, startDate, endDate, startTime, endTime, isAllDay, location, eventUrl, recurrenceType, recurrenceDays, recurrenceInterval, attendees, viewers, eventToEdit]);
+
+  // Conflict Detection
+  useEffect(() => {
+    if (!startDate || (!isAllDay && !startTime)) {
+      setConflictingEvents([]);
+      return;
+    }
+
+    let start: Date;
+    let end: Date;
+
+    try {
+      if (isAllDay) {
+        start = new Date(`${startDate}T00:00:00`);
+        end = new Date(`${endDate || startDate}T23:59:59`);
+      } else {
+        if (!endTime) return;
+        start = new Date(`${startDate}T${startTime}`);
+        end = new Date(`${endDate || startDate}T${endTime}`);
+      }
+
+      // Overlap check: (StartA < EndB) && (EndA > StartB)
+      const conflicts = events.filter(e => {
+        if (e.id === editingEventId) return false; // Ignore self
+
+        const eStart = new Date(e.start_time);
+        const eEnd = new Date(e.end_time);
+
+        return start < eEnd && end > eStart;
+      });
+
+      setConflictingEvents(conflicts);
+    } catch (e) {
+      // Invalid dates
+      setConflictingEvents([]);
+    }
+  }, [startDate, startTime, endDate, endTime, isAllDay, events, editingEventId]);
+
   // Auto-update end date when start date changes
   useEffect(() => {
     // Skip if editing event (preserve original dates)
@@ -355,48 +458,55 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
   // NEW: Apply quick template presets
   const applyTemplate = (template: string) => {
     const baseDate = startDate || formatDateForInput(new Date());
-    const now = new Date();
 
     switch (template) {
-      case '1h-meeting':
+      case 'after-work-evening':
         setStartDate(baseDate);
         setEndDate(baseDate);
-        setStartTime(startTime || suggestStartTime(now));
-        setEndTime(addHours(startTime || suggestStartTime(now), 1));
+        setStartTime('18:00');
+        setEndTime('22:00');
         setIsAllDay(false);
-        toast.success('Template applied: 1-hour meeting');
+        toast.success('Template applied: After work evening');
         break;
 
-      case 'all-day':
+      case 'after-work-overnight': {
+        setStartDate(baseDate);
+        // Calculate next day for end date
+        const start = new Date(baseDate);
+        const nextDay = new Date(start);
+        nextDay.setDate(start.getDate() + 1);
+        setEndDate(formatDateForInput(nextDay));
+
+        setStartTime('18:00');
+        setEndTime('08:00');
+        setIsAllDay(false);
+        toast.success('Template applied: After work overnight');
+        break;
+      }
+
+      case 'day':
         setStartDate(baseDate);
         setEndDate(baseDate);
-        setIsAllDay(true);
-        setStartTime('');
-        setEndTime('');
-        toast.success('Template applied: All-day event');
+        setStartTime('09:00');
+        setEndTime('17:00');
+        setIsAllDay(false);
+        toast.success('Template applied: Day (9-5)');
         break;
 
-      case 'lunch':
+      case 'day-overnight': {
         setStartDate(baseDate);
-        setEndDate(baseDate);
-        setStartTime('12:00');
-        setEndTime('13:00');
-        setIsAllDay(false);
-        if (!title) setTitle('Lunch');
-        toast.success('Template applied: Lunch break');
-        break;
+        // Calculate next day for end date
+        const start = new Date(baseDate);
+        const nextDay = new Date(start);
+        nextDay.setDate(start.getDate() + 1);
+        setEndDate(formatDateForInput(nextDay));
 
-      case 'recurring-weekly':
-        setStartDate(baseDate);
-        setEndDate(baseDate);
-        setRecurrenceType('weekly');
-        const dayOfWeek = new Date(baseDate).getDay();
-        setRecurrenceDays([dayOfWeek.toString()]);
+        setStartTime('09:00');
+        setEndTime('08:00');
         setIsAllDay(false);
-        setStartTime(startTime || suggestStartTime(now));
-        setEndTime(addHours(startTime || suggestStartTime(now), 1));
-        toast.success('Template applied: Weekly recurring');
+        toast.success('Template applied: Day + Overnight');
         break;
+      }
 
       default:
         break;
@@ -461,6 +571,23 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
       .filter(([_, status]) => status === 'viewer')
       .map(([userId]) => userId);
 
+
+    // Validation
+    const newErrors: Record<string, string> = {};
+    if (!title.trim()) newErrors.title = 'Title is required';
+    if (startDate && endDate && endDate < startDate) {
+      newErrors.endDate = 'End date cannot be before start date';
+    }
+    if (!isAllDay && startDate === endDate && startTime && endTime && endTime <= startTime) {
+      newErrors.endTime = 'End time must be after start time';
+    }
+    setErrors(newErrors);
+
+    if (Object.keys(newErrors).length > 0) {
+      toast.error('Please fix validation errors');
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -522,6 +649,8 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
   };
 
   const resetForm = () => {
+    localStorage.removeItem('freecal_event_draft'); // Clear draft
+    setErrors({}); // Clear errors
     setEditingEventId(null);
     setTitle('');
     setNotes('');
@@ -567,6 +696,21 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
       return { ...prev, [userId]: next };
     });
   };
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Save: Ctrl+S or Cmd+S
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        const form = document.querySelector('form');
+        if (form) form.requestSubmit();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   if (relLoading) {
     return (
@@ -634,8 +778,16 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
         onImportSuccess={handleOCRSuccess}
       />
 
-      <div className="flex-1 overflow-y-auto pb-24 px-4">
-        <form onSubmit={handleSave} className="space-y-6 py-4">
+      <div className="flex-1 overflow-y-auto pb-20 px-4">
+        {/* Context Indicator for Smart Prefill */}
+        {!editingEventId && initialDate && (
+          <div className="bg-primary/10 text-primary border border-primary/20 px-4 py-3 rounded-lg mb-6 text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+            <span>📅</span>
+            Creating event for {new Date(initialDate).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+          </div>
+        )}
+
+        <form onSubmit={handleSave} className="space-y-6 pt-4">
           {/* Quick Templates - Only show for new events */}
           {!editingEventId && (
             <div className="bg-muted/30 rounded-lg p-4">
@@ -645,39 +797,57 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => applyTemplate('1h-meeting')}
+                  onClick={() => applyTemplate('after-work-evening')}
                   className="text-xs h-9"
                 >
-                  ⏱️ 1h Meeting
+                  🌆 After Work
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => applyTemplate('all-day')}
+                  onClick={() => applyTemplate('after-work-overnight')}
                   className="text-xs h-9"
                 >
-                  📅 All Day
+                  🌙 Overnight
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => applyTemplate('lunch')}
+                  onClick={() => applyTemplate('day')}
                   className="text-xs h-9"
                 >
-                  🍽️ Lunch (1h)
+                  ☀️ Day
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => applyTemplate('recurring-weekly')}
+                  onClick={() => applyTemplate('day-overnight')}
                   className="text-xs h-9"
                 >
-                  🔄 Weekly
+                  🌅 Day + Night
                 </Button>
               </div>
+            </div>
+          )}
+
+          {/* Conflict Warning */}
+          {conflictingEvents.length > 0 && (
+            <div className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-3 rounded-lg flex flex-col gap-1 animate-in fade-in slide-in-from-top-1">
+              <div className="flex items-center gap-2 font-medium text-sm">
+                <AlertTriangle className="w-4 h-4" />
+                <span>Conflict detected with {conflictingEvents.length} existing event{conflictingEvents.length > 1 ? 's' : ''}</span>
+              </div>
+              <ul className="list-disc list-inside text-xs pl-5 opacity-90">
+                {conflictingEvents.slice(0, 3).map(e => (
+                  <li key={e.id}>
+                    {e.title} ({new Date(e.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(e.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                  </li>
+                ))}
+                {conflictingEvents.length > 3 && <li>+ {conflictingEvents.length - 3} more</li>}
+              </ul>
             </div>
           )}
 
@@ -687,11 +857,15 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
             <Input
               id="title"
               placeholder="Team meeting, Lunch, etc."
-              className="bg-card"
+              className={`bg-card ${errors.title ? "border-red-500 focus-visible:ring-red-500" : ""}`}
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (errors.title) setErrors({ ...errors, title: '' });
+              }}
               required
             />
+            {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
           </div>
 
           {/* Date and Time */}
@@ -712,11 +886,15 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
               <Input
                 id="end-date"
                 type="date"
-                className="bg-card"
+                className={`bg-card ${errors.endDate ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  if (errors.endDate) setErrors({ ...errors, endDate: '' });
+                }}
                 required
               />
+              {errors.endDate && <p className="text-red-500 text-xs mt-1">{errors.endDate}</p>}
             </div>
           </div>
 
@@ -747,11 +925,15 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
                 <Input
                   id="end-time"
                   type="time"
-                  className="bg-card"
+                  className={`bg-card ${errors.endTime ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                   value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
+                  onChange={(e) => {
+                    setEndTime(e.target.value);
+                    if (errors.endTime) setErrors({ ...errors, endTime: '' });
+                  }}
                   required
                 />
+                {errors.endTime && <p className="text-red-500 text-xs mt-1">{errors.endTime}</p>}
               </div>
             </div>
           )}

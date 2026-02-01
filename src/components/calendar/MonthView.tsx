@@ -1,3 +1,4 @@
+import { useState, useRef } from 'react';
 import { CalendarEvent } from '@/data/mockData';
 import { getCalendarDays, getWeekDays, isSameDay, isToday } from '@/utils/dateUtils';
 import { cn } from '@/lib/utils';
@@ -8,9 +9,10 @@ interface MonthViewProps {
   events: CalendarEvent[];
   selectedDate: Date | null;
   onDateSelect: (date: Date) => void;
+  onQuickCreate?: (date: Date) => void;
 }
 
-export function MonthView({ year, month, events, selectedDate, onDateSelect }: MonthViewProps) {
+export function MonthView({ year, month, events, selectedDate, onDateSelect, onQuickCreate }: MonthViewProps) {
   const days = getCalendarDays(year, month);
   const weekDays = getWeekDays();
 
@@ -20,17 +22,17 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect }: M
     return events.filter(event => {
       const startDate = new Date(event.startDate);
       const endDate = new Date(event.endDate);
-      
+
       // Set time to midnight for accurate date-only comparison
       const checkDate = new Date(date);
       checkDate.setHours(0, 0, 0, 0);
-      
+
       const eventStart = new Date(startDate);
       eventStart.setHours(0, 0, 0, 0);
-      
+
       const eventEnd = new Date(endDate);
       eventEnd.setHours(0, 0, 0, 0);
-      
+
       // Event is on this date if the date falls between start and end (inclusive)
       return checkDate >= eventStart && checkDate <= eventEnd;
     });
@@ -40,6 +42,24 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect }: M
   const getEventColor = (event: CalendarEvent): string => {
     const hasRelationshipAttendees = event.attendeeIds.some(attendeeId => attendeeId !== event.userId);
     return hasRelationshipAttendees ? 'hsl(45, 90%, 55%)' : event.color;
+  };
+
+
+  // Long press logic
+  const [longPressTriggered, setLongPressTriggered] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout>();
+
+  const handleTouchStart = (date: Date) => {
+    setLongPressTriggered(false);
+    timerRef.current = setTimeout(() => {
+      setLongPressTriggered(true);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
+      onQuickCreate?.(date);
+    }, 500); // 500ms hold time
+  };
+
+  const handleTouchEnd = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
   };
 
   return (
@@ -67,14 +87,35 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect }: M
           return (
             <button
               key={date.toISOString()}
-              onClick={() => onDateSelect(date)}
+              onClick={() => {
+                if (!longPressTriggered) {
+                  onDateSelect(date);
+                }
+              }}
+              onTouchStart={() => handleTouchStart(date)}
+              onTouchEnd={handleTouchEnd}
+              onMouseDown={() => handleTouchStart(date)}
+              onMouseUp={handleTouchEnd}
+              onMouseLeave={handleTouchEnd}
               className={cn(
-                'aspect-square rounded-lg p-1 flex flex-col items-center justify-start transition-all relative',
-                'hover:bg-accent',
+                'aspect-square rounded-lg p-1 flex flex-col items-center justify-start transition-all relative group touch-manipulation',
+                'hover:bg-accent active:scale-95',
                 isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
                 isCurrentDay && !isSelected && 'border-2 border-primary'
               )}
             >
+              {/* Quick Create Button (Desktop hover) */}
+              <div
+                role="button"
+                className="absolute top-0.5 right-0.5 w-4 h-4 bg-primary rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px] text-primary-foreground z-10 hover:scale-110 shadow-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onQuickCreate?.(date);
+                }}
+                title="Create event on this date"
+              >
+                +
+              </div>
               <span className={cn(
                 'text-sm font-medium mb-0.5',
                 isSelected && 'text-primary-foreground',
@@ -82,7 +123,7 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect }: M
               )}>
                 {date.getDate()}
               </span>
-              
+
               {/* Event indicators */}
               {dayEvents.length > 0 && (
                 <div className="flex gap-0.5 flex-wrap justify-center">
@@ -93,7 +134,7 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect }: M
                         'w-1 h-1 rounded-full',
                         isSelected && 'opacity-80'
                       )}
-                      style={{ 
+                      style={{
                         backgroundColor: isSelected ? '#ffffff' : getEventColor(event)
                       }}
                     />

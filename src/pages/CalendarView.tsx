@@ -17,10 +17,12 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 
 export function CalendarView({
   onEditEvent,
-  onSelectedDateChange
+  onSelectedDateChange,
+  onQuickCreate
 }: {
   onEditEvent?: (event: EventWithAttendees) => void;
   onSelectedDateChange?: (date: Date | null) => void;
+  onQuickCreate?: (date: Date) => void;
 }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
@@ -252,9 +254,14 @@ export function CalendarView({
           }
           selectedDate={selectedDate}
           onDateSelect={handleDateSelect}
+          onQuickCreate={onQuickCreate}
         />
 
-        {/* Events for selected date */}
+        {/* User Tip */}
+        <div className="mt-2 text-xs text-center text-muted-foreground flex items-center justify-center gap-1.5 bg-muted/30 py-1.5 rounded-full mx-auto w-fit px-3">
+          <span className="text-[10px]">💡</span>
+          <span>Tip: Hover (desktop) or hold (mobile) date to quick create</span>
+        </div>{/* Events for selected date */}
         {
           selectedDate && (
             <div className="mt-6">

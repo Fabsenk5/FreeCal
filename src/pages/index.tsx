@@ -33,10 +33,15 @@ function Index() {
     setSelectedCalendarDate(date);
   };
 
+  const handleQuickCreate = (date: Date) => {
+    setSelectedCalendarDate(date);
+    setActiveTab('create');
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'calendar':
-        return <CalendarView onEditEvent={handleEditEvent} onSelectedDateChange={handleCalendarDateChange} />;
+        return <CalendarView onEditEvent={handleEditEvent} onSelectedDateChange={handleCalendarDateChange} onQuickCreate={handleQuickCreate} />;
       case 'create':
         return <CreateEvent eventToEdit={eventToEdit} onEventSaved={handleEventSaved} initialDate={selectedCalendarDate} />;
       case 'worldmap':
@@ -46,7 +51,7 @@ function Index() {
       case 'profile':
         return <Profile />;
       default:
-        return <CalendarView onEditEvent={handleEditEvent} onSelectedDateChange={handleCalendarDateChange} />;
+        return <CalendarView onEditEvent={handleEditEvent} onSelectedDateChange={handleCalendarDateChange} onQuickCreate={handleQuickCreate} />;
     }
   };
 
