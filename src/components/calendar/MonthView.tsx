@@ -81,7 +81,7 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect, onQ
               {/* Quick Create Button (Desktop hover) */}
               <div
                 role="button"
-                className="absolute top-0.5 right-0.5 w-4 h-4 bg-primary rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px] text-primary-foreground z-10 hover:scale-110 shadow-sm"
+                className="absolute top-0.5 right-0.5 w-4 h-4 bg-primary rounded-full opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex items-center justify-center text-[10px] text-primary-foreground z-10 hover:scale-110 shadow-sm"
                 onClick={(e) => {
                   e.stopPropagation();
                   onQuickCreate?.(date);
