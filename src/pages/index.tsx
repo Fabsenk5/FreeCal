@@ -23,9 +23,13 @@ function Index() {
     setActiveTab('create');
   };
 
-  const handleEventSaved = () => {
+  const handleEventSaved = (savedEvent?: { start_time: string }) => {
     setEventToEdit(null);
-    setSelectedCalendarDate(null); // Clear selected date after save
+    if (savedEvent) {
+      setSelectedCalendarDate(new Date(savedEvent.start_time));
+    } else {
+      setSelectedCalendarDate(null);
+    }
     setActiveTab('calendar');
   };
 
@@ -41,7 +45,12 @@ function Index() {
   const renderContent = () => {
     switch (activeTab) {
       case 'calendar':
-        return <CalendarView onEditEvent={handleEditEvent} onSelectedDateChange={handleCalendarDateChange} onQuickCreate={handleQuickCreate} />;
+        return <CalendarView
+          onEditEvent={handleEditEvent}
+          onSelectedDateChange={handleCalendarDateChange}
+          onQuickCreate={handleQuickCreate}
+          initialDate={selectedCalendarDate}
+        />;
       case 'create':
         return <CreateEvent eventToEdit={eventToEdit} onEventSaved={handleEventSaved} initialDate={selectedCalendarDate} />;
       case 'worldmap':
@@ -51,7 +60,12 @@ function Index() {
       case 'profile':
         return <Profile />;
       default:
-        return <CalendarView onEditEvent={handleEditEvent} onSelectedDateChange={handleCalendarDateChange} onQuickCreate={handleQuickCreate} />;
+        return <CalendarView
+          onEditEvent={handleEditEvent}
+          onSelectedDateChange={handleCalendarDateChange}
+          onQuickCreate={handleQuickCreate}
+          initialDate={selectedCalendarDate}
+        />;
     }
   };
 

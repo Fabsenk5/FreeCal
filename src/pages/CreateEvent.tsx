@@ -19,7 +19,7 @@ import { OCREventData } from '@/utils/calendarOCR';
 
 interface CreateEventProps {
   eventToEdit?: EventWithAttendees | null;
-  onEventSaved?: () => void;
+  onEventSaved?: (savedEvent?: { start_time: string }) => void;
   initialDate?: Date | null; // NEW: Pre-fill date from calendar selection
 }
 
@@ -625,7 +625,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
         toast.success('Event updated successfully!');
         resetForm();
         if (onEventSaved) {
-          onEventSaved();
+          onEventSaved({ start_time: eventData.start_time });
         }
       } else {
         // CREATE new event
@@ -634,7 +634,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
         toast.success('Event created successfully!');
         resetForm();
         if (onEventSaved) {
-          onEventSaved();
+          onEventSaved({ start_time: eventData.start_time });
         }
       }
     } catch (err: any) {

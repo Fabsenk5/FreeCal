@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { InviteInbox } from '@/components/notifications/InviteInbox';
@@ -18,14 +18,24 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 export function CalendarView({
   onEditEvent,
   onSelectedDateChange,
-  onQuickCreate
+  onQuickCreate,
+  initialDate
 }: {
   onEditEvent?: (event: EventWithAttendees) => void;
   onSelectedDateChange?: (date: Date | null) => void;
   onQuickCreate?: (date: Date) => void;
+  initialDate?: Date | null;
 }) {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  const [currentDate, setCurrentDate] = useState(initialDate || new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(initialDate || new Date());
+
+  // Update view when initialDate changes (e.g. returning from creating an event)
+  useEffect(() => {
+    if (initialDate) {
+      setCurrentDate(initialDate);
+      setSelectedDate(initialDate);
+    }
+  }, [initialDate]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   const { events, loading, refreshEvents } = useEvents();
