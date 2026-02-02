@@ -327,21 +327,14 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
         // The owner is always considered busy
         const busyUserIds = new Set<string>([e.user_id]);
 
-        // Check attendees with 'accepted' status
-        if (e.attendees_details) {
-          e.attendees_details.forEach(d => {
-            if (d.status === 'accepted') {
-              busyUserIds.add(d.userId);
-            }
-          });
-        } else if (e.attendees && Array.isArray(e.attendees)) {
-          // Fallback if details missing: assume all attendees are busy?
-          // Or strictly follow "status only" implies we need status.
-          // However, to be safe, if we lack status, we might assume busy.
-          // But let's stick to the requested "status only" where possible.
-          // If detailed status is missing, we skip adding them to busy to avoid false positives?
-          // Let's assume if details are missing, we can't determine status, so we rely on array presence.
+        // Add all attendees (regardless of status: accepted, tentative, declined, pending)
+        if (e.attendees && Array.isArray(e.attendees)) {
           e.attendees.forEach(id => busyUserIds.add(id));
+        }
+
+        // Add all viewers ("visible is also enough")
+        if (e.viewers && Array.isArray(e.viewers)) {
+          e.viewers.forEach(id => busyUserIds.add(id));
         }
 
         // 3. Relevance Check (Do we care?)
