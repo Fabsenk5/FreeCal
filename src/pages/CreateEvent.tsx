@@ -294,7 +294,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
 
   // Conflict Detection
   useEffect(() => {
-    if (!startDate || (!isAllDay && !startTime)) {
+    if (!startDate || (!isAllDay && !startTime) || !user) {
       setConflictingEvents([]);
       return;
     }
@@ -319,7 +319,43 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
         const eStart = new Date(e.start_time);
         const eEnd = new Date(e.end_time);
 
-        return start < eEnd && end > eStart;
+        // 1. Time Overlap Check
+        const isTimeOverlapping = start < eEnd && end > eStart;
+        if (!isTimeOverlapping) return false;
+
+        // 2. Participant Check (Who is busy?)
+        // The owner is always considered busy
+        const busyUserIds = new Set<string>([e.user_id]);
+
+        // Check attendees with 'accepted' status
+        if (e.attendees_details) {
+          e.attendees_details.forEach(d => {
+            if (d.status === 'accepted') {
+              busyUserIds.add(d.userId);
+            }
+          });
+        } else if (e.attendees && Array.isArray(e.attendees)) {
+          // Fallback if details missing: assume all attendees are busy?
+          // Or strictly follow "status only" implies we need status.
+          // However, to be safe, if we lack status, we might assume busy.
+          // But let's stick to the requested "status only" where possible.
+          // If detailed status is missing, we skip adding them to busy to avoid false positives?
+          // Let's assume if details are missing, we can't determine status, so we rely on array presence.
+          e.attendees.forEach(id => busyUserIds.add(id));
+        }
+
+        // 3. Relevance Check (Do we care?)
+        // We care if:
+        // - I am busy (user.id is in busyUserIds)
+        // - One of my SELECTED attendees is busy (attendees[i] is in busyUserIds)
+
+        // My ID
+        if (busyUserIds.has(user.id)) return true;
+
+        // Selected Attendees IDs
+        if (attendees.some(selectedId => busyUserIds.has(selectedId))) return true;
+
+        return false;
       });
 
       setConflictingEvents(conflicts);
@@ -327,7 +363,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
       // Invalid dates
       setConflictingEvents([]);
     }
-  }, [startDate, startTime, endDate, endTime, isAllDay, events, editingEventId]);
+  }, [startDate, startTime, endDate, endTime, isAllDay, events, editingEventId, attendees, user]);
 
   // Auto-update end date when start date changes
   useEffect(() => {
@@ -786,7 +822,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
 
           {/* Conflict Warning */}
           {conflictingEvents.length > 0 && (
-            <div className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-3 rounded-lg flex flex-col gap-1 animate-in fade-in slide-in-from-top-1">
+            <div className="bg-red-500/10 backdrop-blur-md border border-red-500/50 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg flex flex-col gap-1 animate-in fade-in slide-in-from-top-1">
               <div className="flex items-center gap-2 font-medium text-sm">
                 <AlertTriangle className="w-4 h-4" />
                 <span>Conflict detected with {conflictingEvents.length} existing event{conflictingEvents.length > 1 ? 's' : ''}</span>
