@@ -45,26 +45,6 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect, onQ
   };
 
 
-  // Double tap logic
-  const lastTapRef = useRef<number>(0);
-
-  const handleDateClick = (date: Date, e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent ghost clicks if needed, though usually fine on buttons
-
-    // Always select the date immediately so user gets feedback
-    onDateSelect(date);
-
-    const now = Date.now();
-    const DOUBLE_TAP_DELAY = 300;
-
-    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-      // Double tap detected
-      onQuickCreate?.(date);
-    }
-
-    lastTapRef.current = now;
-  };
-
   return (
     <div className="bg-card rounded-xl p-4 shadow-sm">
       {/* Week day headers */}
@@ -90,7 +70,7 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect, onQ
           return (
             <button
               key={date.toISOString()}
-              onClick={(e) => handleDateClick(date, e)}
+              onClick={() => onDateSelect(date)}
               className={cn(
                 'aspect-square rounded-lg p-1 flex flex-col items-center justify-start transition-all relative group touch-manipulation',
                 'hover:bg-accent active:scale-95',
