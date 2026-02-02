@@ -45,21 +45,24 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect, onQ
   };
 
 
-  // Long press logic
-  const [longPressTriggered, setLongPressTriggered] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout>();
+  // Double tap logic
+  const lastTapRef = useRef<number>(0);
 
-  const handleTouchStart = (date: Date) => {
-    setLongPressTriggered(false);
-    timerRef.current = setTimeout(() => {
-      setLongPressTriggered(true);
-      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
+  const handleDateClick = (date: Date, e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent ghost clicks if needed, though usually fine on buttons
+
+    // Always select the date immediately so user gets feedback
+    onDateSelect(date);
+
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+
+    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+      // Double tap detected
       onQuickCreate?.(date);
-    }, 500); // 500ms hold time
-  };
+    }
 
-  const handleTouchEnd = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
+    lastTapRef.current = now;
   };
 
   return (
@@ -87,16 +90,7 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect, onQ
           return (
             <button
               key={date.toISOString()}
-              onClick={() => {
-                if (!longPressTriggered) {
-                  onDateSelect(date);
-                }
-              }}
-              onTouchStart={() => handleTouchStart(date)}
-              onTouchEnd={handleTouchEnd}
-              onMouseDown={() => handleTouchStart(date)}
-              onMouseUp={handleTouchEnd}
-              onMouseLeave={handleTouchEnd}
+              onClick={(e) => handleDateClick(date, e)}
               className={cn(
                 'aspect-square rounded-lg p-1 flex flex-col items-center justify-start transition-all relative group touch-manipulation',
                 'hover:bg-accent active:scale-95',

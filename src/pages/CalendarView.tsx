@@ -260,7 +260,7 @@ export function CalendarView({
         {/* User Tip */}
         <div className="mt-2 text-xs text-center text-muted-foreground flex items-center justify-center gap-1.5 bg-muted/30 py-1.5 rounded-full mx-auto w-fit px-3">
           <span className="text-[10px]">💡</span>
-          <span>Tip: Hover (desktop) or hold (mobile) date to quick create</span>
+          <span>Tip: Hover (desktop) or double tap (mobile) date to quick create</span>
         </div>{/* Events for selected date */}
         {
           selectedDate && (
