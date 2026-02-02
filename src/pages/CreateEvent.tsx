@@ -779,20 +779,51 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
       />
 
       <div className="flex-1 overflow-y-auto pb-20 px-4">
-        {/* Context Indicator for Smart Prefill */}
-        {!editingEventId && initialDate && (
-          <div className="bg-primary/10 text-primary border border-primary/20 px-4 py-3 rounded-lg mb-6 text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-            <span>📅</span>
-            Creating event for {new Date(initialDate).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-          </div>
-        )}
+
 
         <form onSubmit={handleSave} className="space-y-6 pt-4">
+
+
+          {/* Conflict Warning */}
+          {conflictingEvents.length > 0 && (
+            <div className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-3 rounded-lg flex flex-col gap-1 animate-in fade-in slide-in-from-top-1">
+              <div className="flex items-center gap-2 font-medium text-sm">
+                <AlertTriangle className="w-4 h-4" />
+                <span>Conflict detected with {conflictingEvents.length} existing event{conflictingEvents.length > 1 ? 's' : ''}</span>
+              </div>
+              <ul className="list-disc list-inside text-xs pl-5 opacity-90">
+                {conflictingEvents.slice(0, 3).map(e => (
+                  <li key={e.id}>
+                    {e.title} ({new Date(e.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(e.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                  </li>
+                ))}
+                {conflictingEvents.length > 3 && <li>+ {conflictingEvents.length - 3} more</li>}
+              </ul>
+            </div>
+          )}
+
+          {/* Title */}
+          <div className="space-y-2">
+            <Label htmlFor="title">Event Title</Label>
+            <Input
+              id="title"
+              placeholder="Team meeting, Lunch, etc."
+              className={`bg-card ${errors.title ? "border-red-500 focus-visible:ring-red-500" : ""}`}
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (errors.title) setErrors({ ...errors, title: '' });
+              }}
+              required
+            />
+            {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
+          </div>
+
           {/* Quick Templates - Only show for new events */}
           {!editingEventId && (
             <div className="bg-muted/30 rounded-lg p-4">
               <Label className="text-sm font-medium mb-3 block">Quick Templates</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -833,45 +864,10 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
             </div>
           )}
 
-          {/* Conflict Warning */}
-          {conflictingEvents.length > 0 && (
-            <div className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-3 rounded-lg flex flex-col gap-1 animate-in fade-in slide-in-from-top-1">
-              <div className="flex items-center gap-2 font-medium text-sm">
-                <AlertTriangle className="w-4 h-4" />
-                <span>Conflict detected with {conflictingEvents.length} existing event{conflictingEvents.length > 1 ? 's' : ''}</span>
-              </div>
-              <ul className="list-disc list-inside text-xs pl-5 opacity-90">
-                {conflictingEvents.slice(0, 3).map(e => (
-                  <li key={e.id}>
-                    {e.title} ({new Date(e.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(e.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
-                  </li>
-                ))}
-                {conflictingEvents.length > 3 && <li>+ {conflictingEvents.length - 3} more</li>}
-              </ul>
-            </div>
-          )}
-
-          {/* Title */}
-          <div className="space-y-2">
-            <Label htmlFor="title">Event Title</Label>
-            <Input
-              id="title"
-              placeholder="Team meeting, Lunch, etc."
-              className={`bg-card ${errors.title ? "border-red-500 focus-visible:ring-red-500" : ""}`}
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                if (errors.title) setErrors({ ...errors, title: '' });
-              }}
-              required
-            />
-            {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
-          </div>
-
-          {/* Date and Time */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Date and Time Consolidated */}
+          <div className={`grid gap-3 ${isAllDay ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'}`}>
             <div className="space-y-2">
-              <Label htmlFor="start-date">Start Date</Label>
+              <Label htmlFor="start-date" className="text-xs">Start Date</Label>
               <Input
                 id="start-date"
                 type="date"
@@ -881,8 +877,23 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
                 required
               />
             </div>
+
+            {!isAllDay && (
+              <div className="space-y-2">
+                <Label htmlFor="start-time" className="text-xs">Start Time</Label>
+                <Input
+                  id="start-time"
+                  type="time"
+                  className="bg-card"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="end-date">End Date</Label>
+              <Label htmlFor="end-date" className="text-xs">End Date</Label>
               <Input
                 id="end-date"
                 type="date"
@@ -894,34 +905,11 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
                 }}
                 required
               />
-              {errors.endDate && <p className="text-red-500 text-xs mt-1">{errors.endDate}</p>}
             </div>
-          </div>
 
-          {/* All-day toggle */}
-          <div className="flex items-center justify-between bg-card p-4 rounded-lg">
-            <Label htmlFor="all-day" className="cursor-pointer">
-              All-day event
-            </Label>
-            <Switch id="all-day" checked={isAllDay} onCheckedChange={setIsAllDay} />
-          </div>
-
-          {/* Time pickers */}
-          {!isAllDay && (
-            <div className="grid grid-cols-2 gap-3">
+            {!isAllDay && (
               <div className="space-y-2">
-                <Label htmlFor="start-time">Start Time</Label>
-                <Input
-                  id="start-time"
-                  type="time"
-                  className="bg-card"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="end-time">End Time</Label>
+                <Label htmlFor="end-time" className="text-xs">End Time</Label>
                 <Input
                   id="end-time"
                   type="time"
@@ -933,10 +921,20 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
                   }}
                   required
                 />
-                {errors.endTime && <p className="text-red-500 text-xs mt-1">{errors.endTime}</p>}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          {(errors.endDate) && <p className="text-red-500 text-xs">{errors.endDate}</p>}
+          {(errors.endTime) && <p className="text-red-500 text-xs">{errors.endTime}</p>}
+
+          {/* All-day toggle */}
+          <div className="flex items-center justify-between bg-card p-4 rounded-lg">
+            <Label htmlFor="all-day" className="cursor-pointer">
+              All-day event
+            </Label>
+            <Switch id="all-day" checked={isAllDay} onCheckedChange={setIsAllDay} />
+          </div>
 
           {/* Recurrence toggle */}
           <div className="flex items-center justify-between bg-card p-4 rounded-lg">
