@@ -1,6 +1,6 @@
 # FreeCal - Calendar & Availability Manager
 
-A modern calendar application for managing events and finding free time with partners/family.
+A modern, open-source calendar application for managing events and finding free time with partners/family.
 
 ## Features
 
@@ -8,142 +8,138 @@ A modern calendar application for managing events and finding free time with par
 - 👥 **Relationship Management** - Connect with partners/family via email
 - 🔍 **Free Time Finder** - Smart availability calculator across multiple users
 - 🎨 **Custom Colors** - Personalized calendar colors per user
-- 🔐 **Admin Approval System** - Private beta with approval workflow
+- 🔐 **Secure Authentication** - JWT-based authentication with secure session management
 - 👁️ **Event Visibility** - Share events as viewer or attendee
 - 📱 **Mobile-First Design** - Optimized for all devices
 
 ## Tech Stack
 
-- **Frontend:** React 18 + TypeScript + Vite
+### Frontend
+- **Framework:** React 18 + TypeScript + Vite
 - **Styling:** Tailwind CSS + shadcn/ui components
-- **Database:** Altan Cloud (PostgreSQL via PostgREST)
-- **Authentication:** Altan Auth (GoTrue)
-- **State Management:** React Context API
+- **State Management:** React Context API + TanStack Query
 - **Routing:** React Router v6
+- **Maps:** Leaflet + React Leaflet
 - **Date Handling:** date-fns
+
+### Backend
+- **Runtime:** Node.js
+- **Framework:** Express.js
+- **Database:** PostgreSQL
+- **ORM:** Drizzle ORM
+- **Authentication:** Custom JWT + bcrypt
+- **Validation:** Zod
 
 ## Prerequisites
 
 - Node.js 18+ and npm/pnpm/yarn
-- Modern IDE (VS Code recommended)
-- Cline extension (for AI-assisted development)
+- PostgreSQL Database
 
 ## Quick Start
 
-### 1. Clone/Copy Project
+### 1. Clone Project
 
 ```bash
-# If migrating from Altan platform, download project files
-# Copy all files to your local directory
-cd your-project-directory
+git clone https://github.com/yourusername/freecal.git
+cd freecal
 ```
 
 ### 2. Install Dependencies
 
+**Frontend:**
 ```bash
 npm install
-# or
-pnpm install
-# or
-yarn install
+```
+
+**Backend:**
+```bash
+cd backend
+npm install
+# Return to root
+cd ..
 ```
 
 ### 3. Environment Setup
 
-Create `.env.local` file in root:
+Create `.env.local` file in the root directory:
 
 ```env
-VITE_SUPABASE_URL=https://eeaf921a-3e9.db-pool-europe-west1.altan.ai
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjIwNzkxMDgzMzUsImlhdCI6MTc2Mzc0ODMzNSwiaXNzIjoic3VwYWJhc2UiLCJyb2xlIjoiYW5vbiJ9.RA7N8UZVIpBwamYWQxcBkLMVMov0TNy8_cSfnBOBpXM
+VITE_API_URL=http://localhost:3000
 ```
 
-### 4. Run Development Server
+Create `.env` file in the `backend` directory:
+
+```env
+DATABASE_URL=postgres://user:password@host:port/dbname
+PORT=3000
+JWT_SECRET=your_jwt_secret
+```
+
+### 4. Database Setup
+
+Initialize the database schema:
 
 ```bash
+cd backend
+npm run db:push
+cd ..
+```
+
+### 5. Run Development Servers
+
+**Backend:**
+```bash
+cd backend
 npm run dev
-# or
-pnpm dev
+```
+
+**Frontend:**
+```bash
+# In a new terminal
+npm run dev
 ```
 
 App runs at: `http://localhost:5173`
 
-### 5. Build for Production
-
-```bash
-npm run build
-npm run preview  # Preview production build
-```
-
 ## Project Structure
 
 ```
-src/
-├── components/          # Reusable UI components
-│   ├── auth/           # Authentication components
-│   ├── calendar/       # Calendar-specific components
-│   ├── profile/        # Profile/relationship components
-│   └── ui/             # shadcn/ui design system
-├── contexts/           # React contexts (Auth)
-├── hooks/              # Custom React hooks
-├── lib/                # Utilities and configurations
-│   └── supabase.ts    # Altan Cloud client setup
-├── pages/              # Route pages
-├── routes.tsx          # Route definitions
-└── App.tsx             # Root component
+├── src/                # Frontend Source
+│   ├── components/     # Reusable UI components
+│   ├── contexts/       # React Contexts
+│   ├── hooks/          # Custom Hooks
+│   ├── lib/            # Utilities (API, etc.)
+│   └── pages/          # Route Pages
+├── backend/            # Backend Source
+│   ├── src/
+│   │   ├── db/         # Drizzle ORM Schema & Config
+│   │   ├── routes/     # API Routes
+│   │   └── index.ts    # Server Entry Point
+└── public/             # Static Assets
 ```
-
-## Database Schema
-
-See `ARCHITECTURE.md` for detailed schema documentation.
-
-**Key tables:**
-- `profiles` - User profiles
-- `events` - Calendar events
-- `event_attendees` - Event attendees (blocks calendar)
-- `event_viewers` - Event viewers (visibility only)
-- `relationships` - User connections
-
-## Admin Access
-
-Admin user: `fabiank5@hotmail.com`
-
-Admin features:
-- User approval management
-- Access to all system features
-
-## Development Workflow
-
-See `DEVELOPMENT.md` for:
-- Coding standards
-- Component patterns
-- Database operations
-- Testing guidelines
-
-## Troubleshooting
-
-**Build errors:**
-```bash
-# Clear cache and reinstall
-rm -rf node_modules dist .vite
-npm install
-```
-
-**Type errors:**
-- Check `src/lib/supabase.ts` for database types
-- Ensure TypeScript version is 5.x+
-
-**Auth issues:**
-- Verify `.env.local` credentials
-- Check Altan Cloud connection
 
 ## Contributing
 
-See `DEVELOPMENT.md` for contribution guidelines.
-
-## Next Steps
-
-See `NEXT_STEPS.md` for planned features and improvements.
+Contributions are welcome! Please read `DEVELOPMENT.md` for details on our code of conduct, and the process for submitting pull requests.
 
 ## License
 
-Private project - All rights reserved
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Open Source Acknowledgments
+
+This project is built on the shoulders of giants. We gratefully acknowledge the following open source projects:
+
+- **React** (MIT) - Facebook
+- **Vite** (MIT) - Yuxi (Evan) You
+- **Tailwind CSS** (MIT) - Tailwind Labs
+- **Express** (MIT) - OpenJS Foundation
+- **Drizzle ORM** (Apache-2.0) - Drizzle Team
+- **Radix UI** (MIT) - WorkOS
+- **Lucide** (ISC) - Lucide Contributors
+- **Leaflet** (BSD-2-Clause) - Vladimir Agafonkin
+- **Date-fns** (MIT) - Sasha Koss
+- **Zod** (MIT) - Colin McDonnell
+- **TanStack Query** (MIT) - Tanner Linsley
+
+And many others listed in `package.json`.
