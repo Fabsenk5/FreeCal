@@ -278,3 +278,268 @@
     h6 { font-size: 0.875rem; line-height: 1.2; }
   }
 }
+
+/* ============================================
+   Valentine's Day Theme - February 2026
+   Active: Feb 13 6PM - Feb 15 11PM
+   ============================================ */
+
+/* Valentine Color Tokens */
+:root {
+  --valentine-pink: 330 70% 70%;
+  --valentine-red: 350 80% 60%;
+  --valentine-rose: 340 75% 55%;
+  --valentine-light: 330 50% 95%;
+  --valentine-glow: 350 100% 70%;
+}
+
+/* Floating Hearts Animation */
+@keyframes float-heart {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100vh) rotate(720deg) scale(0.5);
+    opacity: 0;
+  }
+}
+
+.animate-float-heart {
+  animation: float-heart linear forwards;
+  will-change: transform, opacity;
+}
+
+/* Valentine Countdown Banner */
+.valentine-countdown-banner {
+  background: linear-gradient(
+    135deg,
+    hsla(var(--valentine-pink), 0.15) 0%,
+    hsla(var(--valentine-red), 0.15) 50%,
+    hsla(var(--valentine-rose), 0.15) 100%
+  );
+  border: 1px solid hsla(var(--valentine-pink), 0.3);
+  border-radius: 1rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  backdrop-filter: blur(8px);
+}
+
+.valentine-countdown-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.valentine-countdown-label {
+  font-size: 0.875rem;
+  color: hsl(var(--valentine-pink));
+  font-weight: 500;
+}
+
+.valentine-countdown-timer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.valentine-time-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 3rem;
+}
+
+.valentine-time-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: hsl(var(--valentine-red));
+  line-height: 1;
+}
+
+.valentine-time-label {
+  font-size: 0.625rem;
+  color: hsl(var(--valentine-pink));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.valentine-time-separator {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: hsl(var(--valentine-pink));
+  opacity: 0.5;
+}
+
+/* Valentine Celebration */
+.valentine-celebration {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.valentine-celebration-emoji {
+  font-size: 1.5rem;
+  animation: heart-beat 1s ease-in-out infinite;
+}
+
+.valentine-celebration-message {
+  font-size: 1rem;
+  font-weight: 600;
+  color: hsl(var(--valentine-red));
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px hsla(var(--valentine-glow), 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 16px hsla(var(--valentine-glow), 0.6));
+  }
+}
+
+@keyframes heart-beat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+/* Valentine Modal */
+.valentine-modal {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--card)) 0%,
+    hsla(var(--valentine-pink), 0.1) 100%
+  ) !important;
+  border: 2px solid hsla(var(--valentine-pink), 0.5) !important;
+  box-shadow: 
+    0 0 30px hsla(var(--valentine-glow), 0.2),
+    0 0 60px hsla(var(--valentine-glow), 0.1) !important;
+}
+
+.valentine-modal-title {
+  text-align: center;
+  font-size: 1.25rem;
+  color: hsl(var(--valentine-red)) !important;
+}
+
+.valentine-modal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+.valentine-modal-hearts {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 1.5rem;
+}
+
+.valentine-modal-heart {
+  animation: float-bounce 2s ease-in-out infinite;
+}
+
+@keyframes float-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.valentine-modal-message {
+  text-align: center;
+  font-size: 1rem;
+  color: hsl(var(--foreground));
+  line-height: 1.6;
+}
+
+.valentine-modal-rose {
+  font-size: 3rem;
+  animation: rose-sway 3s ease-in-out infinite;
+}
+
+@keyframes rose-sway {
+  0%, 100% {
+    transform: rotate(-5deg);
+  }
+  50% {
+    transform: rotate(5deg);
+  }
+}
+
+.valentine-modal-button {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--valentine-pink)) 0%,
+    hsl(var(--valentine-red)) 100%
+  ) !important;
+  border: none !important;
+  color: white !important;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.valentine-modal-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px hsla(var(--valentine-glow), 0.4);
+}
+
+/* Valentine Event Card Styling */
+.valentine-event-card {
+  background: linear-gradient(
+    135deg,
+    hsla(var(--valentine-pink), 0.2) 0%,
+    hsla(var(--valentine-red), 0.15) 100%
+  ) !important;
+  border: 2px solid hsla(var(--valentine-pink), 0.5) !important;
+  border-left-width: 4px !important;
+  border-left-color: hsl(var(--valentine-red)) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.valentine-event-card::before {
+  content: '💕';
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 1rem;
+  animation: heart-beat 1.5s ease-in-out infinite;
+}
+
+.valentine-event-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    45deg,
+    transparent 40%,
+    hsla(var(--valentine-glow), 0.1) 50%,
+    transparent 60%
+  );
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}

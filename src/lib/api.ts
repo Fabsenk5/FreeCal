@@ -121,6 +121,7 @@ export interface EventWithAttendees extends Event {
     creator_name?: string;
     creator_color?: string;
     isViewer?: boolean;
+    isValentineEvent?: boolean; // Special Valentine's Day event flag
 }
 
 // Database Types (Migrated from supabase.ts)

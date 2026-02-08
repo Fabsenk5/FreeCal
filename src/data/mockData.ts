@@ -28,6 +28,7 @@ export interface CalendarEvent {
   location?: string;
   url?: string;
   isTentative?: boolean;
+  isValentineEvent?: boolean; // Special Valentine's Day event flag
 }
 
 export const MOCK_USERS: User[] = [

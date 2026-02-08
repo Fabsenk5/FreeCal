@@ -73,7 +73,8 @@ export function EventCard({ event, onClick }: EventCardProps) {
     <button
       onClick={onClick}
       className={cn(
-        'w-full text-left p-3 rounded-lg border-l-4 transition-all hover:scale-[1.02] active:scale-[0.98] text-foreground'
+        'w-full text-left p-3 rounded-lg border-l-4 transition-all hover:scale-[1.02] active:scale-[0.98] text-foreground',
+        event.isValentineEvent && 'valentine-event-card'
       )}
       style={{
         backgroundColor: getBackgroundColor(backgroundColor, event.isViewer),
