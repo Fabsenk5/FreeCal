@@ -13,6 +13,34 @@ import { useNavigate } from 'react-router-dom';
 import { ColorPicker } from '@/components/profile/ColorPicker';
 import { PendingRequestsSection } from '@/components/profile/PendingRequestsSection';
 import { AdminPanel } from '@/components/profile/AdminPanel';
+import { useValentine } from '@/contexts/ValentineContext';
+import { Heart } from 'lucide-react';
+
+function AdminValentineToggle() {
+  const { devModeEnabled, toggleDevMode } = useValentine();
+
+  return (
+    <div className="bg-gradient-to-r from-pink-50 to-red-50 dark:from-pink-950/20 dark:to-red-950/20 p-4 rounded-xl border border-pink-200 dark:border-pink-800">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Heart className={`w-5 h-5 ${devModeEnabled ? 'text-red-500 fill-red-500 animate-pulse' : 'text-muted-foreground'}`} />
+          <div>
+            <h3 className="text-sm font-semibold text-pink-700 dark:text-pink-300">Valentine's Test Mode</h3>
+            <p className="text-xs text-muted-foreground">Force enable Valentine's features globally for this session</p>
+          </div>
+        </div>
+        <Button
+          variant={devModeEnabled ? "default" : "outline"}
+          size="sm"
+          onClick={toggleDevMode}
+          className={devModeEnabled ? "bg-red-500 hover:bg-red-600 border-0" : "border-pink-200 hover:border-pink-300"}
+        >
+          {devModeEnabled ? 'Deactivate' : 'Activate'}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function Profile() {
   const { profile, user, updateProfile, signOut } = useAuth();
@@ -281,7 +309,14 @@ export function Profile() {
         <PendingRequestsSection />
 
         {/* Admin Panel for admin users */}
-        {profile?.email === 'fabiank5@hotmail.com' && <AdminPanel />}
+        {['fabiank5@hotmail.com', 'fabiank5@hotmaill.com'].includes(profile?.email || '') && (
+          <div className="mb-6">
+            <AdminValentineToggle />
+            <div className="mt-4">
+              <AdminPanel />
+            </div>
+          </div>
+        )}
 
         {/* About section */}
         <div className="pb-6">
