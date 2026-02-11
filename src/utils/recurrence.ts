@@ -26,6 +26,11 @@ export function expandRecurringEvents(
         try {
             const eventStart = new Date(event.start_time);
             const eventEnd = new Date(event.end_time);
+
+            if (isNaN(eventStart.getTime()) || isNaN(eventEnd.getTime())) {
+                expandedEvents.push(event);
+                return;
+            }
             const duration = eventEnd.getTime() - eventStart.getTime();
 
             // Determine Frequency
@@ -38,23 +43,32 @@ export function expandRecurringEvents(
             }
 
             // Determine Interval
-            const interval = event.recurrence_interval || 1;
+            let interval = 1;
+            if (event.recurrence_interval) {
+                const parsed = parseInt(String(event.recurrence_interval), 10);
+                if (!isNaN(parsed) && parsed > 0) {
+                    interval = parsed;
+                }
+            }
 
             // Determine Days (for weekly)
             // Map '0'...'6' or 'SU'...'SA'
-            const byweekday = event.recurrence_days?.map(d => {
-                const day = parseInt(d);
-                switch (day) {
-                    case 0: return RRule.SU;
-                    case 1: return RRule.MO;
-                    case 2: return RRule.TU;
-                    case 3: return RRule.WE;
-                    case 4: return RRule.TH;
-                    case 5: return RRule.FR;
-                    case 6: return RRule.SA;
-                    default: return null;
-                }
-            }).filter(d => d !== null) as any[] || null;
+            let byweekday: any[] | null = null;
+            if (Array.isArray(event.recurrence_days) && event.recurrence_days.length > 0) {
+                byweekday = event.recurrence_days.map(d => {
+                    const day = parseInt(String(d), 10);
+                    switch (day) {
+                        case 0: return RRule.SU;
+                        case 1: return RRule.MO;
+                        case 2: return RRule.TU;
+                        case 3: return RRule.WE;
+                        case 4: return RRule.TH;
+                        case 5: return RRule.FR;
+                        case 6: return RRule.SA;
+                        default: return null;
+                    }
+                }).filter(d => d !== null);
+            }
 
 
             // Create RRule
