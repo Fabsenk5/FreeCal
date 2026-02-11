@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { ValentineCountdown } from '@/components/valentine/ValentineCountdown';
 import { useValentineEvent } from '@/hooks/useValentineEvent';
+import { expandRecurringEvents } from '@/utils/recurrence';
 
 export function CalendarView({
   onEditEvent,
@@ -41,12 +42,22 @@ export function CalendarView({
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   const { events: rawEvents, loading, refreshEvents } = useEvents();
-  const events = useValentineEvent(rawEvents); // Inject Valentine event
-  const { relationships, loading: relLoading } = useRelationships();
-  const { profile } = useAuth();
+  const valentineEvents = useValentineEvent(rawEvents); // Inject Valentine event
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
+
+  // Expand recurring events
+  // Determine view range. For month view, it's roughly the whole month + padding.
+  // We can just use a wide enough range for now (e.g. current year +/- 1 month) or strictly current month view.
+  // Ideally, we should calculate based on `currentDate` (view month).
+  const viewStart = new Date(year, month - 1, 1); // Previous month start
+  const viewEnd = new Date(year, month + 2, 0);   // Next month end
+
+  const events = expandRecurringEvents(valentineEvents, viewStart, viewEnd);
+
+  const { relationships, loading: relLoading } = useRelationships();
+  const { profile } = useAuth();
 
   const handlePrevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
@@ -302,8 +313,6 @@ export function CalendarView({
                     interval: e.recurrence_interval || undefined,
                     endDate: e.recurrence_end_date ? new Date(e.recurrence_end_date) : undefined,
                     daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
-                    endDate: e.recurrence_end_date ? new Date(e.recurrence_end_date) : undefined,
-                    daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
                   } : undefined,
                   isValentineEvent: e.isValentineEvent,
                 }))}
@@ -342,8 +351,6 @@ export function CalendarView({
                   recurrence: selectedEvent.recurrence_type && selectedEvent.recurrence_type !== 'none' ? {
                     frequency: selectedEvent.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
                     interval: selectedEvent.recurrence_interval || undefined,
-                    endDate: selectedEvent.recurrence_end_date ? new Date(selectedEvent.recurrence_end_date) : undefined,
-                    daysOfWeek: selectedEvent.recurrence_days?.map(d => parseInt(d)) || undefined,
                     endDate: selectedEvent.recurrence_end_date ? new Date(selectedEvent.recurrence_end_date) : undefined,
                     daysOfWeek: selectedEvent.recurrence_days?.map(d => parseInt(d)) || undefined,
                   } : undefined,
