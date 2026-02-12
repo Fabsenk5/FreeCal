@@ -42,7 +42,7 @@ export function ValentineWelcome() {
 
                 <div className="valentine-modal-content">
                     <div className="valentine-modal-hearts">
-                        {'💕💖💗💓💘'.split('').map((emoji, i) => (
+                        {[...'💕💖💗💓💘'].map((emoji, i) => (
                             <span
                                 key={i}
                                 className="valentine-modal-heart"

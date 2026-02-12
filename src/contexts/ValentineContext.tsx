@@ -95,17 +95,14 @@ export function useValentine() {
 // German romantic messages for the special event
 export const VALENTINE_MESSAGES = {
     eventTitle: '💕 Ein besonderer Tag für uns 💕',
-    eventDescription: `Mein Schatz,
+    eventDescription: `Unser Valentinstag 💖
 
-Heute ist unser Tag – ein Tag voller Liebe und Zärtlichkeit. 
-Du machst mein Leben jeden Tag schöner und ich bin so dankbar, dich an meiner Seite zu haben.
+Heute feiern wir uns – du und ich.
+Danke, dass du mein Leben so wunderbar machst.
 
-Mit dir ist jeder Moment ein Geschenk. 💖
-
-In Liebe,
-Dein Schatz`,
-    welcomeTitle: 'Frohen Valentinstag, meine Liebe! 💕',
-    welcomeMessage: 'Du bist das Beste, was mir je passiert ist. Heute feiern wir unsere Liebe! 🌹',
-    countdownTitle: 'Countdown zu unserem besonderen Moment',
-    celebrationMessage: 'Jetzt ist unser Moment! Ich liebe dich! 💖',
+In Liebe`,
+    welcomeTitle: 'Happy Valentinstag, mein Schatz! 💕',
+    welcomeMessage: 'Schön, dass es dich gibt. Heute gehört ganz uns! 🌹',
+    countdownTitle: '💗 Countdown zu unserem besonderen Tag',
+    celebrationMessage: 'Happy Valentinstag! Ich liebe dich! 💖',
 };
