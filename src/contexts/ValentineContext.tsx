@@ -21,7 +21,7 @@ interface ValentineContextType {
 const ValentineContext = createContext<ValentineContextType | undefined>(undefined);
 
 // Valentine's Day 2026 dates (Central European Time)
-const VALENTINE_START = new Date('2026-02-13T18:00:00+01:00'); // Feb 13, 6PM CET
+const VALENTINE_START = new Date('2026-02-13T12:00:00+01:00'); // Feb 13, 12PM CET
 const VALENTINE_COUNTDOWN_END = new Date('2026-02-14T13:00:00+01:00'); // Feb 14, 1PM CET
 const VALENTINE_END = new Date('2026-02-15T23:00:00+01:00'); // Feb 15, 11PM CET
 
