@@ -7,11 +7,14 @@ import { Heart } from 'lucide-react';
 const WELCOME_SHOWN_KEY = 'freecal_valentine_welcome_2026';
 
 export function ValentineWelcome() {
-    const { isValentineMode } = useValentine();
+    const { isValentineMode, isCountdownPhase } = useValentine();
     const [isOpen, setIsOpen] = useState(false);
 
+    // Only show welcome popup after countdown reaches zero
+    const shouldShow = isValentineMode && !isCountdownPhase;
+
     useEffect(() => {
-        if (!isValentineMode) return;
+        if (!shouldShow) return;
 
         // Check if already shown this session
         const wasShown = sessionStorage.getItem(WELCOME_SHOWN_KEY);
@@ -23,9 +26,9 @@ export function ValentineWelcome() {
             }, 1000);
             return () => clearTimeout(timer);
         }
-    }, [isValentineMode]);
+    }, [shouldShow]);
 
-    if (!isValentineMode) {
+    if (!shouldShow) {
         return null;
     }
 
