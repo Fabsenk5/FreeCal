@@ -42,6 +42,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
   const [recurrenceType, setRecurrenceType] = useState<'daily' | 'weekly' | 'monthly' | 'custom' | 'none'>('none');
   const [recurrenceInterval, setRecurrenceInterval] = useState(1);
   const [recurrenceDays, setRecurrenceDays] = useState<string[]>([]);
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [location, setLocation] = useState<string>('');
   const [eventUrl, setEventUrl] = useState<string>('');
@@ -130,6 +131,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
       setRecurrenceType(eventToEdit.recurrence_type);
       setRecurrenceDays(eventToEdit.recurrence_days || []);
       setRecurrenceInterval(eventToEdit.recurrence_interval || 1);
+      setRecurrenceEndDate(eventToEdit.recurrence_end_date ? eventToEdit.recurrence_end_date.split('T')[0] : '');
       setAttendees(eventToEdit.attendees || []);
       setViewers(eventToEdit.viewers || []);
 
@@ -638,7 +640,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
         recurrence_type: recurrenceType,
         recurrence_days: recurrenceDays.length > 0 ? recurrenceDays : null,
         recurrence_interval: recurrenceType !== 'none' ? recurrenceInterval : null,
-        recurrence_end_date: null,
+        recurrence_end_date: recurrenceEndDate || null,
         imported_from_device: false,
         location: location.trim() || null,
         url: eventUrl.trim() || null,
@@ -691,6 +693,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
     setRecurrenceType('none');
     setRecurrenceDays([]);
     setRecurrenceInterval(1);
+    setRecurrenceEndDate('');
     setAttendees([]);
     setViewers([]);
     setSharingStatus({});
@@ -1038,6 +1041,22 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
                   </div>
                 </div>
               )}
+
+              {/* Recurrence End Date */}
+              <div className="space-y-2">
+                <Label htmlFor="recurrence-end">Ends by (optional)</Label>
+                <Input
+                  id="recurrence-end"
+                  type="date"
+                  className="bg-card"
+                  value={recurrenceEndDate}
+                  onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                  min={startDate}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave empty for no end date
+                </p>
+              </div>
             </div>
           )}
 

@@ -43,6 +43,7 @@ export function useValentineEvent(events: EventWithAttendees[]): EventWithAttend
             recurrence_days: null,
             recurrence_interval: null,
             recurrence_end_date: null,
+            recurrence_exceptions: null,
             imported_from_device: false,
             location: 'In deinem Herzen 💖',
             url: null,

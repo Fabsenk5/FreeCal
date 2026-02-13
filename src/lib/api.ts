@@ -101,6 +101,7 @@ export interface Event {
     recurrence_days: string[] | null;
     recurrence_interval: number | null;
     recurrence_end_date: string | null;
+    recurrence_exceptions: string[] | null;
     imported_from_device: boolean;
     location: string | null;
     url: string | null;

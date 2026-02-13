@@ -112,6 +112,7 @@ export const getEvents = async (req: Request & { user?: any }, res: Response) =>
                 recurrence_days: event.recurrenceDays,
                 recurrence_interval: event.recurrenceInterval,
                 recurrence_end_date: event.recurrenceEndDate?.toISOString(),
+                recurrence_exceptions: event.recurrenceExceptions || [],
                 imported_from_device: event.importedFromDevice,
                 location: event.location,
                 url: event.url,
@@ -159,6 +160,7 @@ export const createEvent = async (req: Request & { user?: any }, res: Response) 
             recurrenceDays: body.recurrence_days,
             recurrenceInterval: body.recurrence_interval,
             recurrenceEndDate: body.recurrence_end_date ? new Date(body.recurrence_end_date) : null,
+            recurrenceExceptions: body.recurrence_exceptions || [],
             importedFromDevice: body.imported_from_device,
             location: body.location,
             url: body.url,
@@ -224,6 +226,7 @@ export const updateEvent = async (req: Request & { user?: any }, res: Response) 
             recurrenceDays: body.recurrence_days,
             recurrenceInterval: body.recurrence_interval,
             recurrenceEndDate: body.recurrence_end_date ? new Date(body.recurrence_end_date) : null,
+            recurrenceExceptions: body.recurrence_exceptions !== undefined ? (body.recurrence_exceptions || []) : undefined,
             location: body.location,
             url: body.url,
             isTentative: body.is_tentative,
@@ -288,6 +291,37 @@ export const deleteEvent = async (req: Request & { user?: any }, res: Response) 
         res.status(500).json({ message: 'Error deleting event', error });
     }
 }
+
+export const excludeOccurrence = async (req: Request & { user?: any }, res: Response) => {
+    if (!req.user) return res.sendStatus(401);
+    const { id } = req.params;
+    const { excluded_date } = req.body;
+
+    if (!excluded_date) {
+        return res.status(400).json({ message: 'excluded_date is required' });
+    }
+
+    try {
+        // Verify ownership
+        const [existing] = await db.select().from(events).where(eq(events.id, id));
+        if (!existing) return res.status(404).json({ message: 'Event not found' });
+        if (existing.userId !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
+
+        // Append the excluded date to the existing array
+        const currentExceptions = existing.recurrenceExceptions || [];
+        const updatedExceptions = [...currentExceptions, excluded_date];
+
+        await db.update(events).set({
+            recurrenceExceptions: updatedExceptions,
+            updatedAt: new Date(),
+        }).where(eq(events.id, id));
+
+        res.json({ message: 'Occurrence excluded', recurrence_exceptions: updatedExceptions });
+    } catch (error) {
+        console.error('Exclude Occurrence Error:', error);
+        res.status(500).json({ message: 'Error excluding occurrence', error });
+    }
+};
 
 export const respondToInvite = async (req: Request & { user?: any }, res: Response) => {
     if (!req.user) return res.sendStatus(401);

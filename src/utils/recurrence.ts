@@ -89,8 +89,16 @@ export function expandRecurringEvents(
             // We pad the range slightly to ensuring we catch edge cases
             const occurrences = rule.between(startRange, endRange, true);
 
+            // Filter out excluded occurrences (recurrence_exceptions)
+            const exceptions = new Set(
+                (event.recurrence_exceptions || []).map(d => new Date(d).toDateString())
+            );
+            const filteredOccurrences = occurrences.filter(
+                date => !exceptions.has(date.toDateString())
+            );
+
             // Map occurrences to new event objects
-            occurrences.forEach(date => {
+            filteredOccurrences.forEach(date => {
                 const occStart = new Date(date);
                 const occEnd = new Date(date.getTime() + duration);
 

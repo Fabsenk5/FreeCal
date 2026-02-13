@@ -46,6 +46,7 @@ export const events = pgTable('events', {
     recurrenceDays: text('recurrence_days').array(),
     recurrenceInterval: integer('recurrence_interval'),
     recurrenceEndDate: timestamp('recurrence_end_date', { withTimezone: true }),
+    recurrenceExceptions: text('recurrence_exceptions').array(), // ISO date strings of excluded occurrences
     importedFromDevice: boolean('imported_from_device').default(false),
     location: text('location'),
     url: text('url'),

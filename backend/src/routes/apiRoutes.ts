@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getEvents, createEvent, updateEvent, deleteEvent, respondToInvite } from '../controllers/eventController';
+import { getEvents, createEvent, updateEvent, deleteEvent, respondToInvite, excludeOccurrence } from '../controllers/eventController';
 import { getRelationships, createRelationship, updateRelationship, deleteRelationship } from '../controllers/relationshipController';
 import { featureWishlistController } from '../controllers/featureWishlistController';
 import { authenticateToken } from '../middleware/auth';
@@ -15,6 +15,7 @@ router.post('/events', createEvent);
 router.put('/events/:id', updateEvent);
 router.delete('/events/:id', deleteEvent);
 router.put('/events/:id/respond', respondToInvite);
+router.post('/events/:id/exclude-occurrence', excludeOccurrence);
 
 // Relationships
 router.get('/relationships', getRelationships);

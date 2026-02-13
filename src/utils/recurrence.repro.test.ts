@@ -22,6 +22,7 @@ describe('expandRecurringEvents Reproduction', () => {
             recurrence_days: ['5'], // Friday
             recurrence_interval: 1,
             recurrence_end_date: null,
+            recurrence_exceptions: null,
             user_id: 'u1',
             is_all_day: false,
             color: 'blue',

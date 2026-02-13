@@ -7,7 +7,7 @@ import { EventList } from '@/components/calendar/EventList';
 import { useEvents } from '@/hooks/useEvents';
 import { useRelationships } from '@/hooks/useRelationships';
 import { getMonthName } from '@/utils/dateUtils';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { EventCard } from '@/components/calendar/EventCard';
 import { Button } from '@/components/ui/button';
 import { api, EventWithAttendees } from '@/lib/api';
@@ -40,6 +40,7 @@ export function CalendarView({
     }
   }, [initialDate]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const { events: rawEvents, loading, refreshEvents } = useEvents();
   const valentineEvents = useValentineEvent(rawEvents); // Inject Valentine event
@@ -131,9 +132,34 @@ export function CalendarView({
 
       toast.success('Event deleted successfully!');
       setSelectedEventId(null);
+      setShowDeleteDialog(false);
       refreshEvents();
     } catch (err: any) {
       console.error('Delete error:', err);
+      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
+        description: 'Copy this error and paste in chat for help',
+        duration: 10000,
+      });
+    }
+  };
+
+  const handleExcludeOccurrence = async () => {
+    if (!selectedEvent || !selectedEvent._originalEventId) return;
+
+    try {
+      // Send the occurrence's start date as the excluded date
+      const occurrenceDate = new Date(selectedEvent.start_time).toISOString();
+
+      await api.post(`/events/${selectedEvent._originalEventId}/exclude-occurrence`, {
+        excluded_date: occurrenceDate,
+      });
+
+      toast.success('Occurrence removed!');
+      setSelectedEventId(null);
+      setShowDeleteDialog(false);
+      refreshEvents();
+    } catch (err: any) {
+      console.error('Exclude occurrence error:', err);
       toast.error(`Error: ${err.response?.data?.message || err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
@@ -379,7 +405,15 @@ export function CalendarView({
                     <Button
                       className="flex-1"
                       variant="destructive"
-                      onClick={handleDeleteEvent}
+                      onClick={() => {
+                        if (selectedEvent._originalEventId) {
+                          // Recurring event instance — ask user
+                          setShowDeleteDialog(true);
+                        } else {
+                          // Non-recurring — delete directly
+                          handleDeleteEvent();
+                        }
+                      }}
                     >
                       Delete
                     </Button>
@@ -390,6 +424,38 @@ export function CalendarView({
           )}
         </DialogContent>
       </Dialog >
+
+      {/* Delete confirmation dialog for recurring events */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="max-w-[90%] rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Delete Recurring Event</DialogTitle>
+            <DialogDescription>
+              This event is part of a recurring series. What would you like to delete?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={handleExcludeOccurrence}
+            >
+              This occurrence only
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteEvent}
+            >
+              Entire series
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setShowDeleteDialog(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div >
   );
 }
