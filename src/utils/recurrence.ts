@@ -97,12 +97,9 @@ export function expandRecurringEvents(
                 expandedEvents.push({
                     ...event,
                     id: `${event.id}_${date.getTime()}`, // Unique ID for key prop
+                    _originalEventId: event.id, // Preserve original DB ID for update/delete
                     start_time: occStart.toISOString(),
                     end_time: occEnd.toISOString(),
-                    // Ensure we keep original ID reference if needed? 
-                    // For now, the ID change is enough for React keys.
-                    // Note: editing a recurring instance usually edits the master.
-                    // We might need to handle 'original_event_id' if we support exception instances.
                 });
             });
 

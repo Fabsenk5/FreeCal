@@ -106,7 +106,12 @@ export function CalendarView({
     console.log('CalendarView: Edit button clicked, event:', selectedEvent);
 
     if (onEditEvent) {
-      onEditEvent(selectedEvent);
+      // For recurring event instances, restore the original DB ID so the
+      // edit form sends updates to the correct backend record.
+      const eventForEdit = selectedEvent._originalEventId
+        ? { ...selectedEvent, id: selectedEvent._originalEventId }
+        : selectedEvent;
+      onEditEvent(eventForEdit);
     } else {
       console.error('onEditEvent callback is not defined!');
     }
@@ -118,8 +123,11 @@ export function CalendarView({
   const handleDeleteEvent = async () => {
     if (!selectedEvent) return;
 
+    // For recurring event instances, use the original DB ID for the API call
+    const eventIdForApi = selectedEvent._originalEventId || selectedEvent.id;
+
     try {
-      await api.delete(`/events/${selectedEvent.id}`);
+      await api.delete(`/events/${eventIdForApi}`);
 
       toast.success('Event deleted successfully!');
       setSelectedEventId(null);
