@@ -3,7 +3,7 @@ import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { api } from '@/lib/api';
+import { fetchFeatureWishes, createFeatureWish, updateFeatureWishStatus, deleteFeatureWish } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Plus, Trash2, CheckCircle2, Circle, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
@@ -12,7 +12,7 @@ interface Wish {
     id: string;
     title: string;
     status: 'pending' | 'completed';
-    createdAt: string;
+    created_at: string;
 }
 
 const ADMIN_EMAIL = 'fabiank5@hotmail.com';
@@ -32,7 +32,7 @@ export function FeatureWishlist() {
 
     const fetchWishes = async () => {
         try {
-            const { data } = await api.get('/feature-wishes');
+            const data = await fetchFeatureWishes();
             setWishes(data);
         } catch (error) {
             console.error('Failed to fetch wishes:', error);
@@ -43,10 +43,10 @@ export function FeatureWishlist() {
     };
 
     const handleAdd = async () => {
-        if (!newItem.trim()) return;
+        if (!newItem.trim() || !user) return;
         setIsSubmitting(true);
         try {
-            await api.post('/feature-wishes', { title: newItem });
+            await createFeatureWish(newItem, user.id);
             setNewItem('');
             toast.success('Wish added!');
             fetchWishes();
@@ -61,7 +61,7 @@ export function FeatureWishlist() {
     const handleDelete = async (id: string) => {
         if (!confirm('Are you sure you want to delete this wish?')) return;
         try {
-            await api.delete(`/feature-wishes/${id}`);
+            await deleteFeatureWish(id);
             toast.success('Wish deleted');
             setWishes(prev => prev.filter(w => w.id !== id));
         } catch (error) {
@@ -78,7 +78,7 @@ export function FeatureWishlist() {
         setWishes(prev => prev.map(w => w.id === wish.id ? { ...w, status: newStatus } : w));
 
         try {
-            await api.put(`/feature-wishes/${wish.id}/status`, { status: newStatus });
+            await updateFeatureWishStatus(wish.id, newStatus);
         } catch (error) {
             console.error('Failed to update status:', error);
             toast.error('Failed to update status');
@@ -156,7 +156,7 @@ export function FeatureWishlist() {
                                     {wish.title}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-1">
-                                    {new Date(wish.createdAt).toLocaleDateString()}
+                                    {new Date(wish.created_at).toLocaleDateString()}
                                 </p>
                             </div>
 

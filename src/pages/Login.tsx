@@ -34,7 +34,7 @@ export function Login() {
     } catch (err) {
       // Show user-friendly error messages
       // Prefer backend message if available (User oriented), fallback to technical error
-      const errorMessage = (err as any).response?.data?.message || (err instanceof Error ? err.message : 'Unknown error');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
 
       if (errorMessage.includes('Invalid login credentials')) {
         setError('Invalid email or password. Please check your credentials and try again.');

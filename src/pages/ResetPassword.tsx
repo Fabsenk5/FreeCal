@@ -1,21 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { api } from '@/lib/api';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
 export default function ResetPassword() {
-    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const token = searchParams.get('token');
-
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const [isValidSession, setIsValidSession] = useState(false);
+    const [checking, setChecking] = useState(true);
+
+    useEffect(() => {
+        // Supabase redirects here with the session already set via the URL hash
+        // We just need to check if there's a valid session
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setIsValidSession(!!session);
+            setChecking(false);
+        });
+
+        // Listen for the RECOVERY event from Supabase
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'PASSWORD_RECOVERY') {
+                setIsValidSession(true);
+                setChecking(false);
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -33,31 +51,40 @@ export default function ResetPassword() {
         setLoading(true);
 
         try {
-            await api.post('/auth/reset-password', {
-                token,
-                newPassword: password
+            const { error } = await supabase.auth.updateUser({
+                password: password,
             });
+
+            if (error) throw error;
 
             toast.success('Password reset successfully');
             navigate('/login');
         } catch (error: any) {
             console.error('Reset password error:', error);
             toast.error('Error', {
-                description: error.response?.data?.message || 'Failed to reset password',
+                description: error.message || 'Failed to reset password',
             });
         } finally {
             setLoading(false);
         }
     };
 
-    if (!token) {
+    if (checking) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-background">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    if (!isValidSession) {
         return (
             <div className="flex min-h-screen items-center justify-center p-4 bg-background">
                 <Card className="w-full max-w-md border-destructive/50">
                     <CardHeader>
                         <CardTitle className="text-destructive">Invalid Link</CardTitle>
                         <CardDescription>
-                            This password reset link is missing a token.
+                            This password reset link is invalid or has expired.
                         </CardDescription>
                     </CardHeader>
                     <CardFooter>

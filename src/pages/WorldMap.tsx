@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import { Icon, DivIcon } from 'leaflet';
-import { api, TravelLocation } from '@/lib/api';
+import { fetchTravelLocations, createTravelLocation, updateTravelLocation, deleteTravelLocation as deleteTravelLocationApi, TravelLocation } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRelationships } from '@/hooks/useRelationships';
 import { Button } from '@/components/ui/button';
@@ -128,8 +128,9 @@ export function WorldMap() {
 
     // Fetch locations
     const fetchLocations = useCallback(async () => {
+        if (!user) return;
         try {
-            const { data } = await api.get('/travel-locations');
+            const data = await fetchTravelLocations(user.id);
             setLocations(data);
         } catch (error) {
             console.error('Failed to fetch locations:', error);
@@ -137,7 +138,7 @@ export function WorldMap() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [user]);
 
     useEffect(() => {
         fetchLocations();
@@ -261,10 +262,11 @@ export function WorldMap() {
             };
 
             if (editingLocation) {
-                await api.put(`/travel-locations/${editingLocation.id}`, payload);
+                await updateTravelLocation(editingLocation.id, payload);
                 toast.success('Location updated!');
             } else {
-                await api.post('/travel-locations', payload);
+                if (!user) return;
+                await createTravelLocation(user.id, payload);
                 toast.success('Location added!');
             }
 
@@ -295,7 +297,7 @@ export function WorldMap() {
         if (!confirm('Are you sure you want to delete this location?')) return;
 
         try {
-            await api.delete(`/travel-locations/${id}`);
+            await deleteTravelLocationApi(id);
             toast.success('Location deleted');
             setLocations(prev => prev.filter(l => l.id !== id));
             setSelectedLocation(null);

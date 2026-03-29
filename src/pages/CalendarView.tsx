@@ -10,7 +10,7 @@ import { getMonthName } from '@/utils/dateUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { EventCard } from '@/components/calendar/EventCard';
 import { Button } from '@/components/ui/button';
-import { api, EventWithAttendees } from '@/lib/api';
+import { deleteEvent, excludeOccurrence, EventWithAttendees } from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -128,7 +128,7 @@ export function CalendarView({
     const eventIdForApi = selectedEvent._originalEventId || selectedEvent.id;
 
     try {
-      await api.delete(`/events/${eventIdForApi}`);
+      await deleteEvent(eventIdForApi);
 
       toast.success('Event deleted successfully!');
       setSelectedEventId(null);
@@ -136,7 +136,7 @@ export function CalendarView({
       refreshEvents();
     } catch (err: any) {
       console.error('Delete error:', err);
-      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
+      toast.error(`Error: ${err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });
@@ -147,12 +147,8 @@ export function CalendarView({
     if (!selectedEvent || !selectedEvent._originalEventId) return;
 
     try {
-      // Send the occurrence's start date as the excluded date
       const occurrenceDate = new Date(selectedEvent.start_time).toISOString();
-
-      await api.post(`/events/${selectedEvent._originalEventId}/exclude-occurrence`, {
-        excluded_date: occurrenceDate,
-      });
+      await excludeOccurrence(selectedEvent._originalEventId, occurrenceDate);
 
       toast.success('Occurrence removed!');
       setSelectedEventId(null);
@@ -160,7 +156,7 @@ export function CalendarView({
       refreshEvents();
     } catch (err: any) {
       console.error('Exclude occurrence error:', err);
-      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
+      toast.error(`Error: ${err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });

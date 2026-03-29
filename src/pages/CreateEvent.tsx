@@ -11,7 +11,7 @@ import { useEvents } from '@/hooks/useEvents';
 import { Calendar, Upload, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { api, EventWithAttendees } from '@/lib/api';
+import { createEvent, updateEvent, EventWithAttendees } from '@/lib/api';
 import { parseICS, ParsedEvent } from '@/utils/icsParser';
 import { ImportMethodDialog } from '@/components/calendar/ImportMethodDialog';
 import { ScreenshotImportDialog } from '@/components/calendar/ScreenshotImportDialog';
@@ -651,7 +651,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
 
       if (editingEventId) {
         // UPDATE existing event
-        await api.put(`/events/${editingEventId}`, eventData);
+        await updateEvent(editingEventId, user.id, eventData);
 
         toast.success('Event updated successfully!');
         resetForm();
@@ -660,7 +660,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
         }
       } else {
         // CREATE new event
-        await api.post('/events', eventData);
+        await createEvent(user.id, eventData);
 
         toast.success('Event created successfully!');
         resetForm();
@@ -670,7 +670,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
       }
     } catch (err: any) {
       console.error('Save error:', err);
-      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
+      toast.error(`Error: ${err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });

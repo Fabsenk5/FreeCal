@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { api } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 export function HealthCheck() {
@@ -11,41 +11,27 @@ export function HealthCheck() {
     setTesting(true);
     const testResults: string[] = [];
 
-    // Test 1: Check Backend Connection
-    testResults.push('Testing Backend connection...');
+    // Test 1: Check Supabase Connection
+    testResults.push('Testing Supabase connection...');
     try {
-      // Simple ping to an endpoint, e.g. /events or just check if we get a response
-      // using a purposely failing auth call or a public endpoint if available.
-      // For now, let's try to hit the API root or a known endpoint.
-      // Since most valid endpoints are protected, we might get 401, which actually confirms the API is UP.
-
-      await api.get('/events').catch(err => {
-        if (err.response?.status === 401) {
-          return; // This is good, it means server is reachable
-        }
-        throw err;
-      });
-      testResults.push(`✅ Backend connected successfully`);
+      const { data, error } = await supabase.from('profiles').select('id').limit(1);
+      if (error) throw error;
+      testResults.push(`✅ Supabase connected successfully`);
     } catch (err: any) {
-      if (err.response?.status === 401) {
-        testResults.push(`✅ Backend connected (Protected routes responding 401)`);
-      } else {
-        testResults.push(`❌ Connection error: ${err.message || 'Unknown error'}`);
-      }
+      testResults.push(`❌ Supabase connection error: ${err.message || 'Unknown error'}`);
     }
 
-    // Test 2: Check Auth Endpoint
+    // Test 2: Check Auth Service
     testResults.push('Testing Auth service...');
     try {
-      await api.get('/auth/me');
-      testResults.push(`✅ Auth service reachable`);
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      testResults.push(data.session
+        ? `✅ Auth service: Logged in as ${data.session.user.email}`
+        : `✅ Auth service reachable (not logged in)`
+      );
     } catch (err: any) {
-      // 401 is expected if not logged in, but means service is up
-      if (err.response?.status === 401) {
-        testResults.push(`✅ Auth service reachable (User not logged in)`);
-      } else {
-        testResults.push(`❌ Auth service error: ${err.message}`);
-      }
+      testResults.push(`❌ Auth service error: ${err.message}`);
     }
 
     setResults(testResults);
@@ -61,7 +47,7 @@ export function HealthCheck() {
       <div className="w-full max-w-2xl space-y-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold mb-2">System Health Check</h1>
-          <p className="text-muted-foreground">Test backend API services</p>
+          <p className="text-muted-foreground">Test Supabase services</p>
         </div>
 
         <div className="bg-card rounded-2xl p-8 shadow-card">

@@ -5,7 +5,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { Bell, Check, X, Calendar, MapPin } from 'lucide-react';
 import { useEvents } from '@/hooks/useEvents';
 import { useRelationships } from '@/hooks/useRelationships';
-import { api, EventWithAttendees } from '@/lib/api';
+import { respondToInvite, EventWithAttendees } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -33,12 +33,11 @@ export function InviteInbox() {
     }, [events, user]);
 
     const handleRespond = async (eventId: string, status: 'accepted' | 'declined') => {
+        if (!user) return;
         try {
-            await api.put(`/events/${eventId}/respond`, { status });
+            await respondToInvite(eventId, user.id, status);
             toast.success(status === 'accepted' ? 'Event accepted!' : 'Event declined');
-            refreshEvents(); // Reload events to update status/list
-
-            // Optimistic update
+            refreshEvents();
             setPendingInvites(prev => prev.filter(e => e.id !== eventId));
         } catch (error) {
             console.error(error);

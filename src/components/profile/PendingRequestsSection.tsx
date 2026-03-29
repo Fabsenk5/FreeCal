@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, X, Loader2, Clock, Send } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { api } from '@/lib/api';
+import { fetchRelationships as fetchRelationshipsApi, deleteRelationship } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -34,12 +34,10 @@ export function PendingRequestsSection() {
     if (!user) return;
 
     try {
-      const { data } = await api.get('/relationships?status=pending');
+      const data = await fetchRelationshipsApi(user.id, 'pending');
 
-      // Filter for those where I am the SENDER (user_id)
       const requests = data.filter((rel: any) => rel.user_id === user.id);
 
-      // 'profile' key matches the 'other' person, which is receiver
       const requestsWithProfiles = requests.map((req: any) => ({
         id: req.id,
         related_user_id: req.related_user_id,
@@ -76,7 +74,7 @@ export function PendingRequestsSection() {
 
   const handleCancelRequest = async (requestId: string, receiverName: string) => {
     try {
-      await api.delete(`/relationships/${requestId}`);
+      await deleteRelationship(requestId);
 
       toast.success('Request cancelled', {
         description: `Your request to ${receiverName} has been cancelled.`,
@@ -85,7 +83,7 @@ export function PendingRequestsSection() {
       fetchSentRequests();
     } catch (err: any) {
       console.error('Error cancelling request:', err);
-      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
+      toast.error(`Error: ${err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });

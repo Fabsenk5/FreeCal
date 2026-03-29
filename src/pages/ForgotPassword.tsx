@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { api } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Loader2, ArrowLeft } from 'lucide-react';
@@ -18,15 +18,20 @@ export default function ForgotPassword() {
         setLoading(true);
 
         try {
-            await api.post('/auth/forgot-password', { email });
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/reset-password`,
+            });
+
+            if (error) throw error;
+
             setSubmitted(true);
             toast.success('Reset link sent', {
-                description: 'Check your email (and console for demo) for the reset link.',
+                description: 'Check your email for the password reset link.',
             });
         } catch (error: any) {
             console.error('Forgot password error:', error);
             toast.error('Error', {
-                description: error.response?.data?.message || 'Something went wrong',
+                description: error.message || 'Something went wrong',
             });
         } finally {
             setLoading(false);
@@ -47,9 +52,6 @@ export default function ForgotPassword() {
                         <p className="text-sm text-muted-foreground mb-4">
                             Click the link in the email to reset your password. If you don't see it, check your spam folder.
                         </p>
-                        <div className="p-4 bg-muted/50 rounded-lg text-xs text-muted-foreground border border-border">
-                            <strong>Demo Note:</strong> Since this is a demo environment without a real email server, please check the <strong>Backend Console terminal</strong> to see the reset link.
-                        </div>
                     </CardContent>
                     <CardFooter>
                         <Button asChild className="w-full" variant="outline">

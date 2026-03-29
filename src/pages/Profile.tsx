@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Mail, UserPlus, Trash2, Loader2, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { createRelationship, deleteRelationship } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { ColorPicker } from '@/components/profile/ColorPicker';
 import { PendingRequestsSection } from '@/components/profile/PendingRequestsSection';
@@ -101,7 +101,7 @@ export function Profile() {
     setSearching(true);
 
     try {
-      await api.post('/relationships', { email: searchEmail.trim() });
+      await createRelationship(user.id, searchEmail.trim());
 
       toast.success('Request sent!', {
         description: 'You will see their calendar once they accept your request.',
@@ -112,7 +112,7 @@ export function Profile() {
       refreshRelationships();
     } catch (err: any) {
       console.error('Add relationship error:', err);
-      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
+      toast.error(`Error: ${err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });
@@ -123,7 +123,7 @@ export function Profile() {
 
   const handleRemoveRelationship = async (relationshipId: string, userName: string) => {
     try {
-      await api.delete(`/relationships/${relationshipId}`);
+      await deleteRelationship(relationshipId);
 
       toast.success('Relationship removed', {
         description: `${userName} has been removed from your relationships.`,
@@ -132,7 +132,7 @@ export function Profile() {
       refreshRelationships();
     } catch (err: any) {
       console.error('Remove relationship error:', err);
-      toast.error(`Error: ${err.response?.data?.message || err.message}`, {
+      toast.error(`Error: ${err.message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });

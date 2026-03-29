@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api } from '@/lib/api';
+import { getAllUsers, adminUpdateUser, adminDeleteUser, Profile } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -16,7 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Check, X, ChevronDown, Loader2, Shield, Trash2, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { Profile } from '@/lib/api';
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -57,11 +57,8 @@ export function AdminPanel() {
     console.log('AdminPanel: Starting fetchUsers...');
     setLoading(true);
     try {
-      console.log('AdminPanel: Calling API /admin/users');
-      const { data } = await api.get('/admin/users');
-      console.log('AdminPanel: API Response received', data);
+      const data = await getAllUsers();
 
-      // data is array of all users
       setPendingUsers(data.filter((u: any) => u.approval_status === 'pending'));
       setApprovedUsers(data.filter((u: any) => u.approval_status === 'approved'));
       setRejectedUsers(data.filter((u: any) => u.approval_status === 'rejected'));
@@ -69,7 +66,6 @@ export function AdminPanel() {
       console.error('Error fetching users:', error);
       toast.error('Failed to load users');
     } finally {
-      console.log('AdminPanel: Setting loading to false');
       setLoading(false);
     }
   };
@@ -80,8 +76,7 @@ export function AdminPanel() {
     setProcessing(true);
     try {
       if (actionDialog.action === 'delete') {
-        // Delete user
-        await api.delete(`/admin/users/${actionDialog.userId}`);
+        await adminDeleteUser(actionDialog.userId);
         toast.success(`Deleted user ${actionDialog.userName}`);
       } else if (actionDialog.action === 'password_reset') {
         if (!newPassword || newPassword.length < 6) {
@@ -89,16 +84,15 @@ export function AdminPanel() {
           setProcessing(false);
           return;
         }
-        await api.put(`/admin/users/${actionDialog.userId}/password`, {
-          password: newPassword
-        });
-        toast.success(`Password updated for ${actionDialog.userName}`);
+        // Note: Password reset through Supabase Admin API requires a service role key.
+        // For now, this is a placeholder — should be implemented via an Edge Function.
+        toast.info('Password reset via admin is not yet available in Supabase mode. User should use "Forgot Password" instead.');
         setNewPassword('');
       } else {
         const isApproved = actionDialog.action === 'approve';
         const status = isApproved ? 'approved' : 'rejected';
 
-        await api.put(`/admin/users/${actionDialog.userId}`, {
+        await adminUpdateUser(actionDialog.userId, {
           approval_status: status,
           is_approved: isApproved
         });
@@ -110,13 +104,12 @@ export function AdminPanel() {
         );
       }
 
-      // Refresh user lists
       if (actionDialog.action !== 'password_reset') {
-        await fetchUsers(); // Only refresh list if status changed or deleted
+        await fetchUsers();
       }
     } catch (error: any) {
       console.error('Error updating user:', error);
-      toast.error(error.response?.data?.message || 'Failed to update user');
+      toast.error(error.message || 'Failed to update user');
     } finally {
       setProcessing(false);
       setActionDialog({ open: false, userId: null, userName: '', action: null });
