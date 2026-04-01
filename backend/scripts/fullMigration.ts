@@ -4,16 +4,10 @@
  * This script:
  * 1. Reads all profile data from Neon
  * 2. Creates corresponding Supabase Auth users (with temp password)
- * 3. Inserts profiles into Supabase (using the Auth user's UUID)
+ * 3. Updates profiles in Supabase (using the Auth user's UUID)
  * 4. Migrates all other tables, remapping old user IDs to new ones
  * 
- * Requires in backend/.env:
- *   NEON_DATABASE_URL=...
- *   DATABASE_URL=... (Supabase)
- *   SUPABASE_URL=https://eokjccuvhxmguozbffgr.supabase.co
- *   SUPABASE_SERVICE_ROLE_KEY=... (from Dashboard → Settings → API → service_role secret)
- * 
- * Usage: cd backend && npx -y tsx scripts/fullMigration.ts
+ * Uses @supabase/supabase-js (REST API) for Supabase writes to avoid IPv6 issues.
  */
 import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
@@ -28,7 +22,7 @@ async function fullMigration() {
     console.log('=== FreeCal: Full Neon → Supabase Migration ===\n');
 
     // Validate env
-    const required = ['NEON_DATABASE_URL', 'DATABASE_URL', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
+    const required = ['NEON_DATABASE_URL', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
     for (const key of required) {
         if (!process.env[key]) {
             throw new Error(`Missing env var: ${key}`);
@@ -46,11 +40,6 @@ async function fullMigration() {
         ssl: { rejectUnauthorized: false }
     });
 
-    const supabasePool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-    });
-
     // Map old profile IDs → new Supabase Auth UUIDs
     const idMap = new Map<string, string>();
 
@@ -59,10 +48,6 @@ async function fullMigration() {
         console.log('Testing Neon connection...');
         await neonPool.query('SELECT 1');
         console.log('✅ Neon OK\n');
-
-        console.log('Testing Supabase connection...');
-        await supabasePool.query('SELECT 1');
-        console.log('✅ Supabase OK\n');
 
         // ─────────────────────────────────────────
         // Step 1: Read profiles from Neon
@@ -74,7 +59,7 @@ async function fullMigration() {
         // ─────────────────────────────────────────
         // Step 2: Create Supabase Auth users + profiles
         // ─────────────────────────────────────────
-        console.log('Step 2: Creating Supabase Auth users...');
+        console.log('Step 2: Creating Supabase Auth users & Profiles...');
         for (const profile of neonProfiles) {
             try {
                 // Create Auth user with temp password
@@ -87,53 +72,46 @@ async function fullMigration() {
                     }
                 });
 
+                let newId = authUser?.user?.id;
+
                 if (authError) {
-                    // User might already exist
                     if (authError.message?.includes('already been registered')) {
                         console.log(`  ⚠️  ${profile.email} already exists, looking up...`);
                         const { data: { users }, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
                         const existing = users?.find(u => u.email === profile.email);
                         if (existing) {
-                            idMap.set(profile.id, existing.id);
-                            console.log(`  ↳ Mapped ${profile.id} → ${existing.id}`);
+                            newId = existing.id;
+                            idMap.set(profile.id, newId);
+                        } else {
+                            continue;
                         }
-                        continue;
+                    } else {
+                        throw authError;
                     }
-                    throw authError;
+                } else if (newId) {
+                    idMap.set(profile.id, newId);
+                    console.log(`  ✅ Auth: ${profile.email}`);
                 }
 
-                const newId = authUser.user.id;
-                idMap.set(profile.id, newId);
-                console.log(`  ✅ ${profile.email}: ${profile.id} → ${newId}`);
+                if (!newId) continue;
 
-                // The trigger will auto-create a profile row, but we need to update it
-                // with the original data (calendar_color, approval_status, etc.)
-                await supabasePool.query(`
-                    UPDATE profiles SET
-                        display_name = $1,
-                        calendar_color = $2,
-                        avatar_url = $3,
-                        is_approved = $4,
-                        approval_status = $5,
-                        approved_at = $6,
-                        approved_by = $7,
-                        needs_password_reset = true,
-                        updated_at = $8
-                    WHERE id = $9
-                `, [
-                    profile.display_name,
-                    profile.calendar_color || 'hsl(217, 91%, 60%)',
-                    profile.avatar_url,
-                    profile.is_approved ?? true,
-                    profile.approval_status || 'approved',
-                    profile.approved_at,
-                    profile.approved_by,
-                    profile.updated_at || new Date().toISOString(),
-                    newId
-                ]);
+                // Update the auto-created profile with the original data
+                const { error: profileErr } = await supabaseAdmin.from('profiles').update({
+                    display_name: profile.display_name,
+                    calendar_color: profile.calendar_color || 'hsl(217, 91%, 60%)',
+                    avatar_url: profile.avatar_url,
+                    is_approved: profile.is_approved ?? true,
+                    approval_status: profile.approval_status || 'approved',
+                    approved_at: profile.approved_at,
+                    approved_by: profile.approved_by,
+                    needs_password_reset: true,
+                    updated_at: profile.updated_at || new Date().toISOString()
+                }).eq('id', newId);
 
-            } catch (err) {
-                console.error(`  ❌ Error with ${profile.email}:`, err);
+                if (profileErr) throw profileErr;
+
+            } catch (err: any) {
+                console.error(`  ❌ Error with ${profile.email}:`, err.message || err);
             }
         }
 
@@ -144,7 +122,6 @@ async function fullMigration() {
             return;
         }
 
-        // Helper to remap a user ID column
         const remap = (oldId: string | null) => {
             if (!oldId) return null;
             return idMap.get(oldId) || oldId;
@@ -159,30 +136,33 @@ async function fullMigration() {
 
         for (const event of events) {
             const newUserId = remap(event.user_id);
-            if (!newUserId) {
-                console.log(`  ⚠️  Skipping event "${event.title}" — user not mapped`);
-                continue;
-            }
+            if (!newUserId) continue;
 
             try {
-                const { rows: [inserted] } = await supabasePool.query(`
-                    INSERT INTO events (user_id, title, description, location, start_time, end_time, 
-                        all_day, color, recurrence_rule, recurrence_end_date, excluded_dates, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-                    ON CONFLICT DO NOTHING
-                    RETURNING id
-                `, [
-                    newUserId, event.title, event.description, event.location,
-                    event.start_time, event.end_time, event.all_day, event.color,
-                    event.recurrence_rule, event.recurrence_end_date, event.excluded_dates,
-                    event.created_at, event.updated_at
-                ]);
+                const { data: inserted, error } = await supabaseAdmin.from('events').insert({
+                    user_id: newUserId,
+                    title: event.title,
+                    description: event.description,
+                    location: event.location,
+                    start_time: event.start_time,
+                    end_time: event.end_time,
+                    all_day: event.all_day,
+                    color: event.color,
+                    recurrence_rule: event.recurrence_rule,
+                    recurrence_end_date: event.recurrence_end_date,
+                    excluded_dates: event.excluded_dates,
+                    created_at: event.created_at,
+                    updated_at: event.updated_at
+                }).select('id').single();
 
+                if (error) {
+                    if (error.code !== '23505') throw error; // ignore unique violation if any
+                }
                 if (inserted) {
                     eventIdMap.set(event.id, inserted.id);
                 }
-            } catch (err) {
-                console.error(`  ❌ Event "${event.title}":`, err);
+            } catch (err: any) {
+                console.error(`  ❌ Event "${event.title}":`, err.message || err);
             }
         }
         console.log(`  ✅ ${eventIdMap.size}/${events.length} events migrated.\n`);
@@ -200,13 +180,13 @@ async function fullMigration() {
             if (!newEventId || !newUserId) continue;
 
             try {
-                await supabasePool.query(`
-                    INSERT INTO event_attendees (event_id, user_id, status, created_at)
-                    VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING
-                `, [newEventId, newUserId, att.status, att.created_at]);
+                const { error } = await supabaseAdmin.from('event_attendees').insert({
+                    event_id: newEventId, user_id: newUserId, status: att.status, created_at: att.created_at
+                });
+                if (error && error.code !== '23505') throw error; // ignore unique violation
                 attCount++;
-            } catch (err) {
-                console.error(`  ❌ Attendee:`, err);
+            } catch (err: any) {
+                console.error(`  ❌ Attendee:`, err.message || err);
             }
         }
         console.log(`  ✅ ${attCount}/${attendees.length} attendees migrated.\n`);
@@ -224,13 +204,13 @@ async function fullMigration() {
             if (!newEventId || !newUserId) continue;
 
             try {
-                await supabasePool.query(`
-                    INSERT INTO event_viewers (event_id, viewer_id) 
-                    VALUES ($1, $2) ON CONFLICT DO NOTHING
-                `, [newEventId, newUserId]);
+                const { error } = await supabaseAdmin.from('event_viewers').insert({
+                    event_id: newEventId, viewer_id: newUserId
+                });
+                if (error && error.code !== '23505') throw error;
                 viewCount++;
-            } catch (err) {
-                console.error(`  ❌ Viewer:`, err);
+            } catch (err: any) {
+                console.error(`  ❌ Viewer:`, err.message || err);
             }
         }
         console.log(`  ✅ ${viewCount}/${viewers.length} viewers migrated.\n`);
@@ -248,13 +228,13 @@ async function fullMigration() {
             if (!newUserId || !newRelatedId) continue;
 
             try {
-                await supabasePool.query(`
-                    INSERT INTO relationships (user_id, related_user_id, status, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING
-                `, [newUserId, newRelatedId, rel.status, rel.created_at, rel.updated_at]);
+                const { error } = await supabaseAdmin.from('relationships').insert({
+                    user_id: newUserId, related_user_id: newRelatedId, status: rel.status, created_at: rel.created_at, updated_at: rel.updated_at
+                });
+                if (error && error.code !== '23505') throw error;
                 relCount++;
-            } catch (err) {
-                console.error(`  ❌ Relationship:`, err);
+            } catch (err: any) {
+                console.error(`  ❌ Relationship:`, err.message || err);
             }
         }
         console.log(`  ✅ ${relCount}/${rels.length} relationships migrated.\n`);
@@ -269,13 +249,13 @@ async function fullMigration() {
         for (const wish of wishes) {
             const newUserId = remap(wish.created_by);
             try {
-                await supabasePool.query(`
-                    INSERT INTO feature_wishes (title, status, created_by, created_at)
-                    VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING
-                `, [wish.title, wish.status, newUserId, wish.created_at]);
+                const { error } = await supabaseAdmin.from('feature_wishes').insert({
+                    title: wish.title, status: wish.status, created_by: newUserId, created_at: wish.created_at
+                });
+                if (error && error.code !== '23505') throw error;
                 wishCount++;
-            } catch (err) {
-                console.error(`  ❌ Wish:`, err);
+            } catch (err: any) {
+                console.error(`  ❌ Wish:`, err.message || err);
             }
         }
         console.log(`  ✅ ${wishCount}/${wishes.length} wishes migrated.\n`);
@@ -293,17 +273,14 @@ async function fullMigration() {
             if (!newUserId) continue;
 
             try {
-                await supabasePool.query(`
-                    INSERT INTO travel_locations (user_id, name, latitude, longitude, country, city,
-                        visited_date, with_relationship_id, is_wishlist, notes, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT DO NOTHING
-                `, [
-                    newUserId, loc.name, loc.latitude, loc.longitude, loc.country, loc.city,
-                    loc.visited_date, newWithId, loc.is_wishlist, loc.notes, loc.created_at
-                ]);
+                const { error } = await supabaseAdmin.from('travel_locations').insert({
+                    user_id: newUserId, name: loc.name, latitude: loc.latitude, longitude: loc.longitude, country: loc.country, city: loc.city,
+                    visited_date: loc.visited_date, with_relationship_id: newWithId, is_wishlist: loc.is_wishlist, notes: loc.notes, created_at: loc.created_at
+                });
+                if (error && error.code !== '23505') throw error;
                 locCount++;
-            } catch (err) {
-                console.error(`  ❌ Location "${loc.name}":`, err);
+            } catch (err: any) {
+                console.error(`  ❌ Location "${loc.name}":`, err.message || err);
             }
         }
         console.log(`  ✅ ${locCount}/${locations.length} locations migrated.\n`);
@@ -326,7 +303,6 @@ async function fullMigration() {
         console.error('\n❌ Migration failed:', err);
     } finally {
         await neonPool.end();
-        await supabasePool.end();
     }
 }
 
