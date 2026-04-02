@@ -87,26 +87,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    let initialSessionFetched = false;
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted) {
-        initialSessionFetched = true;
-        setFromSession(session);
+    // Get initial session manually
+    const initSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (mounted) {
+          await setFromSession(session);
+        }
+      } catch (error) {
+        console.error('Error getting initial session:', error);
+        if (mounted) setLoading(false);
       }
-    });
+    };
 
-    // Listen for auth state changes
+    initSession();
+
+    // Listen for auth state changes without blocking Supabase's internal loop
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, session: Session | null) => {
-        if (!mounted) return;
-        // In Supabase v2, INITIAL_SESSION fires immediately on listener attachment.
-        // We skip it if getSession has already run, or we let it run if it beats getSession.
-        if (event === 'INITIAL_SESSION' && initialSessionFetched) return;
-        initialSessionFetched = true; // Mark as fetched whichever finishes first
+      (_event: AuthChangeEvent, session: Session | null) => {
+        if (!mounted || _event === 'INITIAL_SESSION') return;
         
-        await setFromSession(session);
+        // Execute detached to avoid deadlocks during Auth events (like USER_UPDATED)
+        setTimeout(() => {
+          if (mounted) {
+            setFromSession(session).catch(console.error);
+          }
+        }, 0);
       }
     );
 
