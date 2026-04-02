@@ -43,7 +43,7 @@ function AdminValentineToggle() {
 }
 
 export function Profile() {
-  const { profile, user, updateProfile, signOut } = useAuth();
+  const { profile, user, updateProfile, signOut, updatePassword } = useAuth();
   const { relationships, loading: relLoading, refreshRelationships } = useRelationships();
   const navigate = useNavigate();
 
@@ -54,6 +54,11 @@ export function Profile() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [searchEmail, setSearchEmail] = useState('');
   const [searching, setSearching] = useState(false);
+
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [updatingPassword, setUpdatingPassword] = useState(false);
 
   // Sync state when profile updates
   useEffect(() => {
@@ -79,6 +84,30 @@ export function Profile() {
       toast.error('Failed to update profile');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setUpdatingPassword(true);
+    try {
+      await updatePassword(newPassword);
+      setPasswordDialogOpen(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      // Error handled in AuthContext
+    } finally {
+      setUpdatingPassword(false);
     }
   };
 
@@ -236,6 +265,17 @@ export function Profile() {
                 )}
               </Button>
             </form>
+
+            <div className="mt-4 pt-4 border-t border-border">
+              <h4 className="text-sm font-medium mb-2">Security</h4>
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => setPasswordDialogOpen(true)}
+              >
+                Change Password
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -380,6 +420,69 @@ export function Profile() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Password Dialog */}
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent className="max-w-[90%] rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdatePassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="bg-card"
+                required
+                minLength={6}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm New Password</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="bg-card"
+                required
+                minLength={6}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setPasswordDialogOpen(false);
+                  setNewPassword('');
+                  setConfirmPassword('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1"
+                disabled={updatingPassword || !newPassword || !confirmPassword}
+              >
+                {updatingPassword ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  'Update Password'
+                )}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
