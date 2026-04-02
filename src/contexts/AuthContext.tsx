@@ -61,6 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Convert session to our User/Profile types
   const setFromSession = async (session: Session | null) => {
+    setLoading(true); // Indicate processing
+    
     if (!session?.user) {
       setUser(null);
       setProfile(null);
@@ -120,25 +122,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // Fallback: If INITIAL_SESSION doesn't fire within 3 seconds for some reason, force getSession
-    const fallbackTimer = setTimeout(async () => {
-      if (mounted && loading) {
-        console.warn('onAuthStateChange INITIAL_SESSION timed out, forcing getSession');
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (mounted) {
-            await setFromSession(session);
-          }
-        } catch (err) {
-          console.error('Fallback getSession failed:', err);
-          if (mounted) setLoading(false);
-        }
-      }
-    }, 3000);
-
     return () => {
       mounted = false;
-      clearTimeout(fallbackTimer);
       subscription.unsubscribe();
     };
   }, []);
@@ -201,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateProfileFn = async (updates: Partial<Profile>) => {
     if (!user) return;
 
-    const { data, error } = await supabase
+    const updatePromise = supabase
       .from('profiles')
       .update({
         display_name: updates.display_name,
@@ -210,6 +195,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .eq('id', user.id)
       .select()
       .single();
+
+    const timeoutPromise = new Promise<any>((_, reject) => 
+      setTimeout(() => reject(new Error('Profile update timed out. Please try again.')), 8000)
+    );
+
+    const { data, error } = await Promise.race([updatePromise, timeoutPromise]);
 
     if (error) {
       toast.error('Failed to update profile');
@@ -220,7 +211,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updatePassword = async (password: string) => {
-    const { error } = await supabase.auth.updateUser({ password });
+    const updatePromise = supabase.auth.updateUser({ password });
+    
+    const timeoutPromise = new Promise<any>((_, reject) => 
+      setTimeout(() => reject(new Error('Password update timed out. Please try again.')), 8000)
+    );
+
+    const { error } = await Promise.race([updatePromise, timeoutPromise]);
+    
     if (error) {
       toast.error('Failed to update password');
       throw error;

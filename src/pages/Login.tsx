@@ -12,7 +12,7 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showBetaMessage, setShowBetaMessage] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -23,6 +23,12 @@ export function Login() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    if (user && !authLoading) {
+      navigate('/');
+    }
+  }, [user, authLoading, navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -30,7 +36,8 @@ export function Login() {
 
     try {
       await signIn(email, password);
-      navigate('/');
+      // Removed manual navigate('/'); 
+      // The useEffect above will handle it seamlessly once auth state settles.
     } catch (err) {
       // Show user-friendly error messages
       // Prefer backend message if available (User oriented), fallback to technical error
