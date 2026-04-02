@@ -86,19 +86,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    let mounted = true;
+    let initialSessionFetched = false;
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setFromSession(session);
+      if (mounted) {
+        initialSessionFetched = true;
+        setFromSession(session);
+      }
     });
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event: AuthChangeEvent, session: Session | null) => {
+      async (event: AuthChangeEvent, session: Session | null) => {
+        if (!mounted) return;
+        // In Supabase v2, INITIAL_SESSION fires immediately on listener attachment.
+        // We skip it if getSession has already run, or we let it run if it beats getSession.
+        if (event === 'INITIAL_SESSION' && initialSessionFetched) return;
+        initialSessionFetched = true; // Mark as fetched whichever finishes first
+        
         await setFromSession(session);
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, displayName: string) => {
