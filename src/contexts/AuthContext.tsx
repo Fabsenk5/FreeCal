@@ -34,18 +34,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Fetch profile from profiles table
   const fetchProfile = async (userId: string, email: string): Promise<Profile | null> => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    try {
+      // Add a 5 second timeout to prevent infinite hanging
+      const fetchPromise = supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+        
+      const timeoutPromise = new Promise<any>((_, reject) => 
+        setTimeout(() => reject(new Error('fetchProfile timed out')), 5000)
+      );
 
-    if (error) {
-      console.error('Error fetching profile:', error);
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return null;
+      }
+      return data;
+    } catch (err) {
+      console.error('Exception fetching profile:', err);
       return null;
     }
-
-    return data;
   };
 
   // Convert session to our User/Profile types
@@ -57,68 +68,77 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const supaUser = session.user;
-    const profileData = await fetchProfile(supaUser.id, supaUser.email || '');
+    try {
+      const supaUser = session.user;
+      const profileData = await fetchProfile(supaUser.id, supaUser.email || '');
 
-    if (profileData) {
-      const userData: User = {
-        id: profileData.id,
-        email: profileData.email,
-        display_name: profileData.display_name,
-        avatar_url: profileData.avatar_url || undefined,
-        calendar_color: profileData.calendar_color,
-      };
+      if (profileData) {
+        const userData: User = {
+          id: profileData.id,
+          email: profileData.email,
+          display_name: profileData.display_name,
+          avatar_url: profileData.avatar_url || undefined,
+          calendar_color: profileData.calendar_color,
+        };
 
-      setUser(userData);
-      setProfile(profileData);
-    } else {
-      // Profile not yet created (trigger might be delayed)
-      setUser({
-        id: supaUser.id,
-        email: supaUser.email || '',
-        display_name: supaUser.user_metadata?.display_name || supaUser.email?.split('@')[0] || '',
-        calendar_color: 'hsl(217, 91%, 60%)',
-      });
+        setUser(userData);
+        setProfile(profileData);
+      } else {
+        // Profile not yet created (trigger might be delayed)
+        setUser({
+          id: supaUser.id,
+          email: supaUser.email || '',
+          display_name: supaUser.user_metadata?.display_name || supaUser.email?.split('@')[0] || '',
+          calendar_color: 'hsl(217, 91%, 60%)',
+        });
+        setProfile(null);
+      }
+    } catch (error) {
+      console.error('Error in setFromSession:', error);
+      setUser(null);
       setProfile(null);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   useEffect(() => {
     let mounted = true;
 
-    // Get initial session manually
-    const initSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (mounted) {
-          await setFromSession(session);
-        }
-      } catch (error) {
-        console.error('Error getting initial session:', error);
-        if (mounted) setLoading(false);
-      }
-    };
-
-    initSession();
-
-    // Listen for auth state changes without blocking Supabase's internal loop
+    // Supabase v2: We can just rely on onAuthStateChange as it fires INITIAL_SESSION
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event: AuthChangeEvent, session: Session | null) => {
-        if (!mounted || _event === 'INITIAL_SESSION') return;
-        
         // Execute detached to avoid deadlocks during Auth events (like USER_UPDATED)
         setTimeout(() => {
           if (mounted) {
-            setFromSession(session).catch(console.error);
+            setFromSession(session).catch((err) => {
+              console.error('Auth context setup error:', err);
+              if (mounted) setLoading(false);
+            });
           }
         }, 0);
       }
     );
 
+    // Fallback: If INITIAL_SESSION doesn't fire within 3 seconds for some reason, force getSession
+    const fallbackTimer = setTimeout(async () => {
+      if (mounted && loading) {
+        console.warn('onAuthStateChange INITIAL_SESSION timed out, forcing getSession');
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (mounted) {
+            await setFromSession(session);
+          }
+        } catch (err) {
+          console.error('Fallback getSession failed:', err);
+          if (mounted) setLoading(false);
+        }
+      }
+    }, 3000);
+
     return () => {
       mounted = false;
+      clearTimeout(fallbackTimer);
       subscription.unsubscribe();
     };
   }, []);
