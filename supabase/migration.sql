@@ -120,6 +120,16 @@ ALTER TABLE event_viewers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE feature_wishes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE travel_locations ENABLE ROW LEVEL SECURITY;
 
+-- Helper function to prevent infinite recursion in RLS policies
+CREATE OR REPLACE FUNCTION get_accessible_events(uid UUID)
+RETURNS SETOF UUID AS $$
+    SELECT id FROM events WHERE user_id = uid
+    UNION
+    SELECT event_id FROM event_attendees WHERE user_id = uid
+    UNION
+    SELECT event_id FROM event_viewers WHERE user_id = uid;
+$$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public;
+
 -- === PROFILES ===
 -- Users can read all profiles (needed for search, attendee display)
 CREATE POLICY "profiles_select_all" ON profiles
@@ -166,9 +176,7 @@ CREATE POLICY "relationships_delete_own" ON relationships
 -- Users can see events they own, are attendee of, or viewer of
 CREATE POLICY "events_select_own_or_invited" ON events
     FOR SELECT TO authenticated USING (
-        auth.uid() = user_id
-        OR EXISTS (SELECT 1 FROM event_attendees WHERE event_id = events.id AND user_id = auth.uid())
-        OR EXISTS (SELECT 1 FROM event_viewers WHERE event_id = events.id AND user_id = auth.uid())
+        id IN (SELECT get_accessible_events(auth.uid()))
     );
 
 CREATE POLICY "events_insert_own" ON events
@@ -183,11 +191,7 @@ CREATE POLICY "events_delete_own" ON events
 -- === EVENT ATTENDEES ===
 CREATE POLICY "event_attendees_select" ON event_attendees
     FOR SELECT TO authenticated USING (
-        EXISTS (SELECT 1 FROM events WHERE id = event_attendees.event_id AND (
-            user_id = auth.uid()
-            OR EXISTS (SELECT 1 FROM event_attendees ea WHERE ea.event_id = event_attendees.event_id AND ea.user_id = auth.uid())
-            OR EXISTS (SELECT 1 FROM event_viewers ev WHERE ev.event_id = event_attendees.event_id AND ev.user_id = auth.uid())
-        ))
+        event_id IN (SELECT get_accessible_events(auth.uid()))
     );
 
 -- Event creator can manage attendees
@@ -210,11 +214,7 @@ CREATE POLICY "event_attendees_delete" ON event_attendees
 -- === EVENT VIEWERS ===
 CREATE POLICY "event_viewers_select" ON event_viewers
     FOR SELECT TO authenticated USING (
-        EXISTS (SELECT 1 FROM events WHERE id = event_viewers.event_id AND (
-            user_id = auth.uid()
-            OR EXISTS (SELECT 1 FROM event_attendees ea WHERE ea.event_id = event_viewers.event_id AND ea.user_id = auth.uid())
-            OR EXISTS (SELECT 1 FROM event_viewers ev WHERE ev.event_id = event_viewers.event_id AND ev.user_id = auth.uid())
-        ))
+        event_id IN (SELECT get_accessible_events(auth.uid()))
     );
 
 CREATE POLICY "event_viewers_insert" ON event_viewers
@@ -275,7 +275,7 @@ BEGIN
     );
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
@@ -291,7 +291,7 @@ BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
