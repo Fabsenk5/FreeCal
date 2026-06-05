@@ -51,8 +51,8 @@ export default defineConfig(({ mode }) => ({
       },
 
       manifest: {
-        name: "FreeCal - Calendar to find shared freedom",
-        short_name: "FreeCal",
+        name: "Family Calendar - Find shared freedom",
+        short_name: "Family Calendar",
         description: "Shared family calendar with OCR import - find time together",
         theme_color: "#3b82f6",
         background_color: "#000000",

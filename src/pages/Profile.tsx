@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { ColorPicker } from '@/components/profile/ColorPicker';
 import { PendingRequestsSection } from '@/components/profile/PendingRequestsSection';
 import { AdminPanel } from '@/components/profile/AdminPanel';
+import { DataExport } from '@/components/profile/DataExport';
 import { useValentine } from '@/contexts/ValentineContext';
 import { Heart } from 'lucide-react';
 
@@ -277,6 +278,8 @@ export function Profile() {
               </Button>
             </div>
           </div>
+
+          <DataExport />
         </div>
 
         {/* Relationships */}

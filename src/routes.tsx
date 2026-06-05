@@ -11,6 +11,7 @@ import { FreeTimeFinderV2 } from '@/pages/FreeTimeFinderV2';
 import { FeatureWishlist } from '@/pages/FeatureWishlist';
 import { FreeTimeFinder } from '@/pages/FreeTimeFinder';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { PrivacyPolicy } from '@/pages/PrivacyPolicy';
 
 const routes = [
   {
@@ -71,6 +72,10 @@ const routes = [
       {
         path: "health",
         element: <HealthCheck />,
+      },
+      {
+        path: "privacy-policy",
+        element: <PrivacyPolicy />,
       },
       {
         path: "*",
