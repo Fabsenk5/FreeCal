@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Mail, UserPlus, Trash2, Loader2, LogOut } from 'lucide-react';
+import { Plus, Mail, UserPlus, Trash2, Loader2, LogOut, BellRing } from 'lucide-react';
 import { toast } from 'sonner';
-import { createRelationship, deleteRelationship } from '@/lib/api';
+import { createRelationship, deleteRelationship, api } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { ColorPicker } from '@/components/profile/ColorPicker';
 import { PendingRequestsSection } from '@/components/profile/PendingRequestsSection';
@@ -178,6 +178,18 @@ export function Profile() {
     }
   };
 
+  const handleTestPush = async () => {
+    try {
+      await api.post('/push/test', {});
+      toast.success('Test notification triggered!', {
+        description: 'You should receive it momentarily.'
+      });
+    } catch (error) {
+      console.error('Failed to send test push', error);
+      toast.error('Failed to send test notification');
+    }
+  };
+
   if (relLoading || !profile) {
     return (
       <div className="flex flex-col h-screen bg-background items-center justify-center">
@@ -276,6 +288,21 @@ export function Profile() {
               >
                 Change Password
               </Button>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-border">
+              <h4 className="text-sm font-medium mb-2">Notifications</h4>
+              <Button 
+                variant="secondary" 
+                className="w-full flex items-center justify-center gap-2"
+                onClick={handleTestPush}
+              >
+                <BellRing className="w-4 h-4" />
+                Test Push Notification
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                Ensure notifications are enabled on your device.
+              </p>
             </div>
           </div>
 
