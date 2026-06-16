@@ -45,6 +45,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [location, setLocation] = useState<string>('');
+  const [travelTime, setTravelTime] = useState<number | null>(null);
   const [eventUrl, setEventUrl] = useState<string>('');
   const [isTentative, setIsTentative] = useState(false);
   const [alerts, setAlerts] = useState<string[]>([]);
@@ -151,6 +152,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
       setEventColor(eventToEdit.color || eventToEdit.creator_color || profile?.calendar_color || 'hsl(217, 91%, 60%)');
       setNotes(eventToEdit.description || '');
       setLocation(eventToEdit.location || '');
+      setTravelTime(eventToEdit.travel_time || null);
       setEventUrl(eventToEdit.url || '');
       setIsTentative(eventToEdit.is_tentative || false);
 
@@ -255,6 +257,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
                 setEndTime(draft.endTime || '');
                 setIsAllDay(draft.isAllDay || false);
                 setLocation(draft.location || '');
+                setTravelTime(draft.travelTime || null);
                 setEventUrl(draft.eventUrl || '');
                 setRecurrenceType(draft.recurrenceType || 'none');
                 setRecurrenceDays(draft.recurrenceDays || []);
@@ -279,7 +282,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
 
     const draftData = {
       title, notes, startDate, endDate, startTime, endTime, isAllDay,
-      location, eventUrl, recurrenceType, recurrenceDays, recurrenceInterval,
+      location, travelTime, eventUrl, recurrenceType, recurrenceDays, recurrenceInterval,
       attendees, viewers
     };
 
@@ -643,6 +646,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
         recurrence_end_date: recurrenceEndDate || null,
         imported_from_device: false,
         location: location.trim() || null,
+        travel_time: travelTime,
         url: eventUrl.trim() || null,
         is_tentative: isTentative,
         attendees: attendeesList,
@@ -699,6 +703,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
     setSharingStatus({});
     setEventColor(profile?.calendar_color || 'hsl(217, 91%, 60%)');
     setLocation('');
+    setTravelTime(null);
     setEventUrl('');
     setIsTentative(false);
   };
@@ -1121,6 +1126,30 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
               value={location}
               onChange={(e) => setLocation(e.target.value)}
             />
+          </div>
+
+          {/* Travel Time */}
+          <div className="space-y-2">
+            <Label>Travel Time (prior to event)</Label>
+            <Select
+              value={travelTime === null ? 'none' : travelTime.toString()}
+              onValueChange={(val) => setTravelTime(val === 'none' ? null : parseInt(val))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select travel time" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                <SelectItem value="5">5 minutes</SelectItem>
+                <SelectItem value="10">10 minutes</SelectItem>
+                <SelectItem value="15">15 minutes</SelectItem>
+                <SelectItem value="30">30 minutes</SelectItem>
+                <SelectItem value="45">45 minutes</SelectItem>
+                <SelectItem value="60">1 hour</SelectItem>
+                <SelectItem value="90">1.5 hours</SelectItem>
+                <SelectItem value="120">2 hours</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Event URL */}

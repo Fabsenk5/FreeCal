@@ -1,7 +1,7 @@
 import { CalendarEvent, getUserById, getUsersByIds } from '@/data/mockData';
 import { formatTime, formatDate } from '@/utils/dateUtils';
 import { cn } from '@/lib/utils';
-import { Clock, Users, Repeat, Calendar, Eye, MapPin, Link } from 'lucide-react';
+import { Clock, Users, Repeat, Calendar, Eye, MapPin, Link, Navigation } from 'lucide-react';
 
 interface EventCardProps {
   event: CalendarEvent;
@@ -128,6 +128,14 @@ export function EventCard({ event, onClick }: EventCardProps) {
             <>
               <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
               <span className="truncate max-w-[150px]">{event.location}</span>
+              <span>•</span>
+            </>
+          )}
+
+          {event.travelTime && (
+            <>
+              <Navigation className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>{event.travelTime}m travel</span>
               <span>•</span>
             </>
           )}

@@ -17,6 +17,7 @@ export default defineConfig(({ mode }) => ({
 
       // Workbox runtime caching for offline support
       workbox: {
+        importScripts: ['push-sw.js'],
         runtimeCaching: [
           {
             // Cache auth endpoints with NetworkFirst strategy

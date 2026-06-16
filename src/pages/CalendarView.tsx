@@ -17,6 +17,9 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { ValentineCountdown } from '@/components/valentine/ValentineCountdown';
 import { useValentineEvent } from '@/hooks/useValentineEvent';
 import { expandRecurringEvents } from '@/utils/recurrence';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { EventComments } from '@/components/calendar/EventComments';
+import { EventChecklist } from '@/components/calendar/EventChecklist';
 
 export function CalendarView({
   onEditEvent,
@@ -300,6 +303,7 @@ export function CalendarView({
               creatorName: e.creator_name,
               location: e.location || undefined,
               url: e.url || undefined,
+              travelTime: e.travel_time || undefined,
               isTentative: e.is_tentative || false,
               recurrence: e.recurrence_type && e.recurrence_type !== 'none' ? {
                 frequency: e.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
@@ -337,6 +341,7 @@ export function CalendarView({
                   creatorName: e.creator_name,
                   location: e.location || undefined,
                   url: e.url || undefined,
+                  travelTime: e.travel_time || undefined,
                   isTentative: e.is_tentative || false,
                   recurrence: e.recurrence_type && e.recurrence_type !== 'none' ? {
                     frequency: e.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
@@ -361,61 +366,80 @@ export function CalendarView({
           </DialogHeader>
           {selectedEvent && (
             <div className="space-y-4">
-              <EventCard
-                event={{
-                  id: selectedEvent.id,
-                  title: selectedEvent.title,
-                  description: selectedEvent.description || '',
-                  startDate: new Date(selectedEvent.start_time),
-                  endDate: new Date(selectedEvent.end_time),
-                  isAllDay: selectedEvent.is_all_day,
-                  userId: selectedEvent.user_id,
-                  attendeeIds: selectedEvent.attendees || [],
-                  viewerIds: selectedEvent.viewers || [],
-                  isViewer: selectedEvent.isViewer,
-                  color: selectedEvent.creator_color || 'hsl(217, 91%, 60%)',
-                  creatorName: selectedEvent.creator_name,
-                  location: selectedEvent.location || undefined,
-                  url: selectedEvent.url || undefined,
-                  isTentative: selectedEvent.is_tentative || false,
-                  recurrence: selectedEvent.recurrence_type && selectedEvent.recurrence_type !== 'none' ? {
-                    frequency: selectedEvent.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
-                    interval: selectedEvent.recurrence_interval || undefined,
-                    endDate: selectedEvent.recurrence_end_date ? new Date(selectedEvent.recurrence_end_date) : undefined,
-                    daysOfWeek: selectedEvent.recurrence_days?.map(d => parseInt(d)) || undefined,
-                  } : undefined,
-                  isValentineEvent: selectedEvent.isValentineEvent,
-                }}
-              />
-              <div className="flex gap-2">
-                {/* Only allow editing/deleting own events */}
-                {profile && selectedEvent.user_id === profile.id && (
-                  <>
-                    <Button
-                      className="flex-1"
-                      variant="outline"
-                      onClick={handleEditEvent}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      className="flex-1"
-                      variant="destructive"
-                      onClick={() => {
-                        if (selectedEvent._originalEventId) {
-                          // Recurring event instance — ask user
-                          setShowDeleteDialog(true);
-                        } else {
-                          // Non-recurring — delete directly
-                          handleDeleteEvent();
-                        }
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </>
-                )}
-              </div>
+              <Tabs defaultValue="info" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="info">Info</TabsTrigger>
+                  <TabsTrigger value="checklist">Checklist</TabsTrigger>
+                  <TabsTrigger value="comments">Comments</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="info" className="space-y-4">
+                  <EventCard
+                    event={{
+                      id: selectedEvent.id,
+                      title: selectedEvent.title,
+                      description: selectedEvent.description || '',
+                      startDate: new Date(selectedEvent.start_time),
+                      endDate: new Date(selectedEvent.end_time),
+                      isAllDay: selectedEvent.is_all_day,
+                      userId: selectedEvent.user_id,
+                      attendeeIds: selectedEvent.attendees || [],
+                      viewerIds: selectedEvent.viewers || [],
+                      isViewer: selectedEvent.isViewer,
+                      color: selectedEvent.creator_color || 'hsl(217, 91%, 60%)',
+                      creatorName: selectedEvent.creator_name,
+                      location: selectedEvent.location || undefined,
+                      url: selectedEvent.url || undefined,
+                      travelTime: selectedEvent.travel_time || undefined,
+                      isTentative: selectedEvent.is_tentative || false,
+                      recurrence: selectedEvent.recurrence_type && selectedEvent.recurrence_type !== 'none' ? {
+                        frequency: selectedEvent.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
+                        interval: selectedEvent.recurrence_interval || undefined,
+                        endDate: selectedEvent.recurrence_end_date ? new Date(selectedEvent.recurrence_end_date) : undefined,
+                        daysOfWeek: selectedEvent.recurrence_days?.map(d => parseInt(d)) || undefined,
+                      } : undefined,
+                      isValentineEvent: selectedEvent.isValentineEvent,
+                    }}
+                  />
+                  <div className="flex gap-2">
+                    {/* Allow editing/deleting own events */}
+                    {profile && selectedEvent.user_id === profile.id && (
+                      <>
+                        <Button
+                          className="flex-1"
+                          variant="outline"
+                          onClick={handleEditEvent}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          className="flex-1"
+                          variant="destructive"
+                          onClick={() => {
+                            if (selectedEvent._originalEventId) {
+                              // Recurring event instance — ask user
+                              setShowDeleteDialog(true);
+                            } else {
+                              // Non-recurring — delete directly
+                              handleDeleteEvent();
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="checklist">
+                  <EventChecklist eventId={selectedEvent._originalEventId || selectedEvent.id} />
+                </TabsContent>
+
+                <TabsContent value="comments">
+                  <EventComments eventId={selectedEvent._originalEventId || selectedEvent.id} />
+                </TabsContent>
+              </Tabs>
             </div>
           )}
         </DialogContent>

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getEvents, createEvent, updateEvent, deleteEvent, respondToInvite, excludeOccurrence } from '../controllers/eventController';
 import { getRelationships, createRelationship, updateRelationship, deleteRelationship } from '../controllers/relationshipController';
 import { featureWishlistController } from '../controllers/featureWishlistController';
+import { pushController } from '../controllers/pushController';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
@@ -22,6 +23,20 @@ router.get('/relationships', getRelationships);
 router.post('/relationships', createRelationship);
 router.put('/relationships/:id', updateRelationship);
 router.delete('/relationships/:id', deleteRelationship);
+
+// Push Notifications
+router.post('/push/subscribe', pushController.subscribe);
+router.post('/push/test', pushController.testNotification);
+
+// Event Details (Comments, Checklist, Editor)
+import { eventDetailsController } from '../controllers/eventDetailsController';
+router.get('/events/:eventId/comments', eventDetailsController.getComments);
+router.post('/events/:eventId/comments', eventDetailsController.addComment);
+router.get('/events/:eventId/checklist', eventDetailsController.getChecklist);
+router.post('/events/:eventId/checklist', eventDetailsController.addChecklistItem);
+router.put('/checklists/:id', eventDetailsController.updateChecklistItem);
+router.delete('/checklists/:id', eventDetailsController.deleteChecklistItem);
+router.put('/events/:eventId/editors/:userId', eventDetailsController.toggleEditor);
 
 // Users (Profile & Search)
 import { updateProfile, searchUsers, getAllUsers, adminUpdateUser, adminDeleteUser, adminUpdateUserPassword } from '../controllers/userController';

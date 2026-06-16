@@ -67,6 +67,7 @@ export const eventAttendees = pgTable('event_attendees', {
     userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
     status: text('status', { enum: ['pending', 'accepted', 'declined'] }).default('pending'),
     isAttendee: boolean('is_attendee').default(true), // Added from recent checklist
+    isEditor: boolean('is_editor').default(false), // Can edit the event
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (t) => ({
     uniqueEventUser: unique().on(t.eventId, t.userId),
@@ -77,6 +78,7 @@ export const eventViewers = pgTable('event_viewers', {
     id: uuid('id').primaryKey().defaultRandom(),
     eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
     userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+    isEditor: boolean('is_editor').default(false), // Can edit the event
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (t) => ({
     uniqueEventUserViewer: unique().on(t.eventId, t.userId),
@@ -107,3 +109,32 @@ export const travelLocations = pgTable('travel_locations', {
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
+
+// Push Subscriptions Table
+export const pushSubscriptions = pgTable('push_subscriptions', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+    endpoint: text('endpoint').notNull(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+// Event Comments Table
+export const eventComments = pgTable('event_comments', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+// Event Checklists Table
+export const eventChecklists = pgTable('event_checklists', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    isCompleted: boolean('is_completed').default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+

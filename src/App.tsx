@@ -7,6 +7,7 @@ import { RelationshipRequestModal } from "./components/notifications/Relationshi
 import { FloatingHearts } from "./components/valentine/FloatingHearts";
 import { ValentineWelcome } from "./components/valentine/ValentineWelcome";
 import { Toaster } from "./components/ui/sonner";
+import { PushNotificationManager } from "./hooks/usePushNotifications";
 
 const App = () => {
   return (
@@ -18,6 +19,7 @@ const App = () => {
           <FloatingHearts />
           <ValentineWelcome />
           <Toaster />
+          <PushNotificationManager />
         </div>
       </ValentineProvider>
     </AuthProvider>

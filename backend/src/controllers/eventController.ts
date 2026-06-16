@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { db } from '../db';
 import { events, eventAttendees, eventViewers, profiles } from '../db/schema';
 import { eq, or, sql, inArray } from 'drizzle-orm';
+import { sendPushNotificationToUser } from '../utils/push';
 
 export const getEvents = async (req: Request & { user?: any }, res: Response) => {
     if (!req.user) return res.sendStatus(401);
@@ -194,6 +195,19 @@ export const createEvent = async (req: Request & { user?: any }, res: Response) 
             attendees_details: attendees.map(id => ({ userId: id, status: 'pending' })),
             viewers
         });
+
+        // Notify participants
+        const notificationPayload = {
+            title: `New Event: ${newEvent.title}`,
+            body: `You have been added to a new event by ${req.user?.display_name || 'someone'}.`,
+            url: '/'
+        };
+        for (const uId of [...new Set([...attendees, ...viewers])]) {
+            if (uId !== userId) {
+                sendPushNotificationToUser(uId, notificationPayload).catch(console.error);
+            }
+        }
+
     } catch (error) {
         console.error('Create Event Error:', error);
         res.status(500).json({ message: 'Error creating event', error });
@@ -212,7 +226,20 @@ export const updateEvent = async (req: Request & { user?: any }, res: Response) 
         // For now simplifying: only creator can update
         const [existing] = await db.select().from(events).where(eq(events.id, id));
         if (!existing) return res.status(404).json({ message: 'Event not found' });
-        if (existing.userId !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
+        
+        let canEdit = existing.userId === req.user.id;
+        if (!canEdit) {
+            const [attendee] = await db.select().from(eventAttendees)
+                .where(sql`${eventAttendees.eventId} = ${id} AND ${eventAttendees.userId} = ${req.user.id}`);
+            if (attendee && attendee.isEditor) canEdit = true;
+        }
+        if (!canEdit) {
+            const [viewer] = await db.select().from(eventViewers)
+                .where(sql`${eventViewers.eventId} = ${id} AND ${eventViewers.userId} = ${req.user.id}`);
+            if (viewer && viewer.isEditor) canEdit = true;
+        }
+
+        if (!canEdit) return res.status(403).json({ message: 'Not authorized' });
 
         const [updatedEvent] = await db.update(events).set({
             title: body.title,
@@ -233,22 +260,39 @@ export const updateEvent = async (req: Request & { user?: any }, res: Response) 
             updatedAt: new Date()
         }).where(eq(events.id, id)).returning();
 
-        // Update Attendees (Delete all + Re-insert is simplest strategy)
+        // Update Attendees (preserve status and isEditor)
         if (attendees !== undefined) {
+            const existingAttendees = await db.select().from(eventAttendees).where(eq(eventAttendees.eventId, id));
             await db.delete(eventAttendees).where(eq(eventAttendees.eventId, id));
             if (attendees.length > 0) {
                 await db.insert(eventAttendees).values(
-                    attendees.map(aId => ({ eventId: id, userId: aId }))
+                    attendees.map(aId => {
+                        const prev = existingAttendees.find(ea => ea.userId === aId);
+                        return { 
+                            eventId: id, 
+                            userId: aId, 
+                            status: prev ? prev.status : 'pending',
+                            isEditor: prev ? prev.isEditor : false
+                        };
+                    })
                 );
             }
         }
 
-        // Update Viewers
+        // Update Viewers (preserve isEditor)
         if (viewers !== undefined) {
+            const existingViewers = await db.select().from(eventViewers).where(eq(eventViewers.eventId, id));
             await db.delete(eventViewers).where(eq(eventViewers.eventId, id));
             if (viewers.length > 0) {
                 await db.insert(eventViewers).values(
-                    viewers.map(vId => ({ eventId: id, userId: vId }))
+                    viewers.map(vId => {
+                        const prev = existingViewers.find(ev => ev.userId === vId);
+                        return { 
+                            eventId: id, 
+                            userId: vId,
+                            isEditor: prev ? prev.isEditor : false
+                        };
+                    })
                 );
             }
         }
@@ -261,6 +305,19 @@ export const updateEvent = async (req: Request & { user?: any }, res: Response) 
             attendees: attendees || [],
             viewers: viewers || []
         });
+
+        // Notify participants (excluding the updater)
+        const notificationPayload = {
+            title: `Event Updated: ${updatedEvent.title}`,
+            body: `An event you are part of has been updated.`,
+            url: '/'
+        };
+        const allParticipants = [...new Set([...(attendees || []), ...(viewers || []), existing.userId])];
+        for (const uId of allParticipants) {
+            if (uId !== req.user.id) {
+                sendPushNotificationToUser(uId, notificationPayload).catch(console.error);
+            }
+        }
 
     } catch (error) {
         console.error('Update Event Error:', error);
