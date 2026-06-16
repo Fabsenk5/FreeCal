@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 
@@ -19,46 +19,50 @@ const urlBase64ToUint8Array = (base64String: string) => {
 
 export const usePushNotifications = () => {
     const { user } = useAuth();
+    const [permission, setPermission] = useState<NotificationPermission>('default');
 
     useEffect(() => {
-        if (!user) return;
+        if ('Notification' in window) {
+            setPermission(Notification.permission);
+        }
+    }, []);
 
-        const subscribeToPush = async () => {
-            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-                return;
-            }
+    const subscribeToPush = async () => {
+        if (!user) return false;
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            console.error('Push not supported');
+            return false;
+        }
 
-            try {
-                const registration = await navigator.serviceWorker.ready;
-                const permission = await Notification.requestPermission();
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            const perm = await Notification.requestPermission();
+            setPermission(perm);
+            
+            if (perm === 'granted') {
+                const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+                if (!vapidPublicKey) return false;
+
+                const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
                 
-                if (permission === 'granted') {
-                    const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-                    if (!vapidPublicKey) return;
-
-                    const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
-                    
-                    let subscription = await registration.pushManager.getSubscription();
-                    if (!subscription) {
-                        subscription = await registration.pushManager.subscribe({
-                            userVisibleOnly: true,
-                            applicationServerKey: convertedVapidKey
-                        });
-                    }
-
-                    // Send subscription to backend
-                    await api.post('/push/subscribe', subscription.toJSON());
+                let subscription = await registration.pushManager.getSubscription();
+                if (!subscription) {
+                    subscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: convertedVapidKey
+                    });
                 }
-            } catch (error) {
-                console.error('Error subscribing to push notifications:', error);
+
+                // Send subscription to backend
+                await api.post('/push/subscribe', subscription.toJSON());
+                return true;
             }
-        };
+            return false;
+        } catch (error) {
+            console.error('Error subscribing to push notifications:', error);
+            return false;
+        }
+    };
 
-        subscribeToPush();
-    }, [user]);
-};
-
-export const PushNotificationManager = () => {
-    usePushNotifications();
-    return null;
+    return { subscribeToPush, permission };
 };

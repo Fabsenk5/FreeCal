@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Plus, Mail, UserPlus, Trash2, Loader2, LogOut, BellRing } from 'lucide-react';
 import { toast } from 'sonner';
 import { createRelationship, deleteRelationship, api } from '@/lib/api';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useNavigate } from 'react-router-dom';
 import { ColorPicker } from '@/components/profile/ColorPicker';
 import { PendingRequestsSection } from '@/components/profile/PendingRequestsSection';
@@ -60,6 +61,9 @@ export function Profile() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  const { subscribeToPush, permission } = usePushNotifications();
+  const [enablingPush, setEnablingPush] = useState(false);
 
   // Sync state when profile updates
   useEffect(() => {
@@ -186,7 +190,20 @@ export function Profile() {
       });
     } catch (error) {
       console.error('Failed to send test push', error);
-      toast.error('Failed to send test notification');
+      toast.error('Failed to send test notification. Are you subscribed?');
+    }
+  };
+
+  const handleEnablePush = async () => {
+    setEnablingPush(true);
+    const success = await subscribeToPush();
+    setEnablingPush(false);
+    if (success) {
+      toast.success('Push notifications enabled!');
+    } else {
+      toast.error('Failed to enable push notifications', {
+        description: 'Please ensure notifications are allowed for this site in your system settings.'
+      });
     }
   };
 
@@ -292,16 +309,34 @@ export function Profile() {
 
             <div className="mt-4 pt-4 border-t border-border">
               <h4 className="text-sm font-medium mb-2">Notifications</h4>
-              <Button 
-                variant="secondary" 
-                className="w-full flex items-center justify-center gap-2"
-                onClick={handleTestPush}
-              >
-                <BellRing className="w-4 h-4" />
-                Test Push Notification
-              </Button>
+              <div className="space-y-2">
+                {permission !== 'granted' && (
+                  <Button 
+                    variant="default" 
+                    className="w-full flex items-center justify-center gap-2"
+                    onClick={handleEnablePush}
+                    disabled={enablingPush}
+                  >
+                    {enablingPush ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <BellRing className="w-4 h-4" />
+                    )}
+                    Enable Notifications
+                  </Button>
+                )}
+                
+                <Button 
+                  variant="secondary" 
+                  className="w-full flex items-center justify-center gap-2"
+                  onClick={handleTestPush}
+                >
+                  <BellRing className="w-4 h-4" />
+                  Test Push Notification
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground mt-2 text-center">
-                Ensure notifications are enabled on your device.
+                {permission === 'granted' ? 'Notifications are allowed.' : 'Ensure notifications are enabled on your device.'}
               </p>
             </div>
           </div>
