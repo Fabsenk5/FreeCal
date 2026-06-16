@@ -22,12 +22,18 @@ export const usePushNotifications = () => {
     const [permission, setPermission] = useState<NotificationPermission>('default');
 
     useEffect(() => {
-        if ('Notification' in window) {
-            setPermission(Notification.permission);
-        }
-    }, []);
+        const initPush = async () => {
+            if ('Notification' in window) {
+                setPermission(Notification.permission);
+                if (Notification.permission === 'granted') {
+                    await subscribeToPush(true);
+                }
+            }
+        };
+        initPush();
+    }, [user]);
 
-    const subscribeToPush = async () => {
+    const subscribeToPush = async (silent = false) => {
         if (!user) return false;
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
             console.error('Push not supported');
@@ -36,7 +42,11 @@ export const usePushNotifications = () => {
 
         try {
             const registration = await navigator.serviceWorker.ready;
-            const perm = await Notification.requestPermission();
+            
+            let perm = Notification.permission;
+            if (!silent && perm !== 'granted') {
+                perm = await Notification.requestPermission();
+            }
             setPermission(perm);
             
             if (perm === 'granted') {
