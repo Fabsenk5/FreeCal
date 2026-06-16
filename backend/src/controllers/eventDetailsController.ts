@@ -133,7 +133,7 @@ export const eventDetailsController = {
             }
 
             // Try updating attendee
-            let updated = await db.update(eventAttendees)
+            let updated: any[] = await db.update(eventAttendees)
                 .set({ isEditor })
                 .where(sql`${eventAttendees.eventId} = ${eventId} AND ${eventAttendees.userId} = ${userId}`)
                 .returning();
