@@ -666,25 +666,50 @@ export async function deleteTravelLocation(locationId: string): Promise<void> {
 }
 
 // ============================================================
-// LEGACY COMPATIBILITY: `api` object for gradual migration
-// This provides the old `api.get/post/put/delete` interface
-// so existing code can continue to work during migration.
+// LEGACY BACKEND COMPATIBILITY: `api` object
+// For endpoints that cannot be migrated to direct Supabase 
+// calls (like Push Notifications which require private keys).
 // ============================================================
+const getApiUrl = () => import.meta.env.VITE_API_URL || '';
+
+const getHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return {
+        'Content-Type': 'application/json',
+        ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+    };
+};
+
 export const api = {
     get: async (url: string) => {
-        console.warn(`[api.get] Legacy call to ${url} — should be migrated to direct Supabase call`);
-        throw new Error(`Legacy API call not supported: GET ${url}`);
+        const res = await fetch(`${getApiUrl()}/api${url}`, { headers: await getHeaders() });
+        if (!res.ok) throw new Error(`API error: ${res.statusText}`);
+        return res.json();
     },
-    post: async (url: string, _data?: any) => {
-        console.warn(`[api.post] Legacy call to ${url} — should be migrated to direct Supabase call`);
-        throw new Error(`Legacy API call not supported: POST ${url}`);
+    post: async (url: string, data?: any) => {
+        const res = await fetch(`${getApiUrl()}/api${url}`, { 
+            method: 'POST',
+            headers: await getHeaders(),
+            body: data ? JSON.stringify(data) : undefined
+        });
+        if (!res.ok) throw new Error(`API error: ${res.statusText}`);
+        return res.json();
     },
-    put: async (url: string, _data?: any) => {
-        console.warn(`[api.put] Legacy call to ${url} — should be migrated to direct Supabase call`);
-        throw new Error(`Legacy API call not supported: PUT ${url}`);
+    put: async (url: string, data?: any) => {
+        const res = await fetch(`${getApiUrl()}/api${url}`, { 
+            method: 'PUT',
+            headers: await getHeaders(),
+            body: data ? JSON.stringify(data) : undefined
+        });
+        if (!res.ok) throw new Error(`API error: ${res.statusText}`);
+        return res.json();
     },
     delete: async (url: string) => {
-        console.warn(`[api.delete] Legacy call to ${url} — should be migrated to direct Supabase call`);
-        throw new Error(`Legacy API call not supported: DELETE ${url}`);
+        const res = await fetch(`${getApiUrl()}/api${url}`, { 
+            method: 'DELETE',
+            headers: await getHeaders()
+        });
+        if (!res.ok) throw new Error(`API error: ${res.statusText}`);
+        return res.json();
     },
 };
