@@ -25,6 +25,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.10.2",
     "@types/pg": "^8.15.6",
+    "@types/web-push": "^3.6.4",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -39,8 +40,5 @@
     "typescript": "^5.9.3",
     "web-push": "^3.6.7",
     "zod": "^3.23.8"
-  },
-  "devDependencies": {
-    "@types/web-push": "^3.6.4"
   }
 }
