@@ -1,7 +1,5 @@
 import webpush from 'web-push';
-import { db } from '../db';
-import { pushSubscriptions } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { supabaseAdmin } from '../db/supabaseAdmin';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
@@ -20,7 +18,13 @@ if (publicKey && privateKey) {
 
 export const sendPushNotificationToUser = async (userId: string, payload: any) => {
     try {
-        const subs = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+        const { data: subs, error } = await supabaseAdmin
+            .from('push_subscriptions')
+            .select('*')
+            .eq('user_id', userId);
+            
+        if (error) throw error;
+        if (!subs) return;
         
         for (const sub of subs) {
             const pushSubscription = {
@@ -35,7 +39,10 @@ export const sendPushNotificationToUser = async (userId: string, payload: any) =
             } catch (err: any) {
                 if (err.statusCode === 410 || err.statusCode === 404) {
                     // Subscription expired or invalid, remove it
-                    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
+                    await supabaseAdmin
+                        .from('push_subscriptions')
+                        .delete()
+                        .eq('id', sub.id);
                 } else {
                     console.error('Failed to send push notification', err);
                 }

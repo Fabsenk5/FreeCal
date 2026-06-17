@@ -1,8 +1,6 @@
 import { Request, Response } from 'express';
-import { db } from '../db';
-import { pushSubscriptions } from '../db/schema';
+import { supabaseAdmin } from '../db/supabaseAdmin';
 import { sendPushNotificationToUser } from '../utils/push';
-import { eq, and } from 'drizzle-orm';
 
 export const pushController = {
     subscribe: async (req: Request, res: Response) => {
@@ -15,20 +13,24 @@ export const pushController = {
                 return res.status(400).json({ message: 'Invalid subscription object' });
             }
 
-            const existingSub = await db.select().from(pushSubscriptions).where(
-                and(
-                    eq(pushSubscriptions.userId, user.id),
-                    eq(pushSubscriptions.endpoint, endpoint)
-                )
-            );
+            const { data: existingSub, error: fetchError } = await supabaseAdmin
+                .from('push_subscriptions')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('endpoint', endpoint);
 
-            if (existingSub.length === 0) {
-                await db.insert(pushSubscriptions).values({
-                    userId: user.id,
-                    endpoint,
-                    p256dh: keys.p256dh,
-                    auth: keys.auth,
-                });
+            if (fetchError) throw fetchError;
+
+            if (!existingSub || existingSub.length === 0) {
+                const { error: insertError } = await supabaseAdmin
+                    .from('push_subscriptions')
+                    .insert({
+                        user_id: user.id,
+                        endpoint,
+                        p256dh: keys.p256dh,
+                        auth: keys.auth,
+                    });
+                if (insertError) throw insertError;
             }
 
             res.status(201).json({ message: 'Subscribed' });
