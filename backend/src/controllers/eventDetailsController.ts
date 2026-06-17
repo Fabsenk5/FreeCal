@@ -9,24 +9,29 @@ export const eventDetailsController = {
     getComments: async (req: Request, res: Response) => {
         const { eventId } = req.params;
         try {
-            const comments = await db.select({
-                id: eventComments.id,
-                eventId: eventComments.eventId,
-                userId: eventComments.userId,
-                content: eventComments.content,
-                createdAt: eventComments.createdAt,
-                user: {
-                    displayName: profiles.displayName,
-                    avatarUrl: profiles.avatarUrl,
-                }
-            })
-            .from(eventComments)
-            .leftJoin(profiles, eq(eventComments.userId, profiles.id))
-            .where(eq(eventComments.eventId, eventId))
-            .orderBy(desc(eventComments.createdAt));
+            const { data: comments, error } = await supabaseAdmin
+                .from('event_comments')
+                .select('id, event_id, user_id, content, created_at, profiles!event_comments_user_id_fkey(display_name, avatar_url)')
+                .eq('event_id', eventId)
+                .order('created_at', { ascending: false });
 
-            res.json(comments);
+            if (error) throw error;
+
+            const formatted = comments.map((c: any) => ({
+                id: c.id,
+                eventId: c.event_id,
+                userId: c.user_id,
+                content: c.content,
+                createdAt: c.created_at,
+                user: {
+                    displayName: c.profiles?.display_name,
+                    avatarUrl: c.profiles?.avatar_url,
+                }
+            }));
+
+            res.json(formatted);
         } catch (error) {
+            console.error('Error fetching comments:', error);
             res.status(500).json({ message: 'Failed to fetch comments' });
         }
     },
@@ -37,20 +42,30 @@ export const eventDetailsController = {
         const user = (req as any).user;
         
         try {
-            const [newComment] = await db.insert(eventComments).values({
-                eventId,
-                userId: user.id,
-                content
-            }).returning();
+            const { data: newComment, error } = await supabaseAdmin
+                .from('event_comments')
+                .insert({
+                    event_id: eventId,
+                    user_id: user.id,
+                    content
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
 
             // Notify others
-            const [event] = await db.select().from(events).where(eq(events.id, eventId));
+            const { data: event } = await supabaseAdmin.from('events').select('*').eq('id', eventId).single();
             if (event) {
-                const attendees = await db.select().from(eventAttendees).where(eq(eventAttendees.eventId, eventId));
-                const viewers = await db.select().from(eventViewers).where(eq(eventViewers.eventId, eventId));
-                const allParticipants = [...new Set([...attendees.map(a => a.userId), ...viewers.map(v => v.userId), event.userId])];
+                const { data: attendees } = await supabaseAdmin.from('event_attendees').select('user_id').eq('event_id', eventId);
+                const { data: viewers } = await supabaseAdmin.from('event_viewers').select('viewer_id').eq('event_id', eventId);
                 
-                const payload = { title: `New comment on ${event.title}`, body: `${user.display_name}: ${content}` };
+                const attIds = attendees?.map((a: any) => a.user_id) || [];
+                const viewIds = viewers?.map((v: any) => v.viewer_id) || [];
+                
+                const allParticipants = [...new Set([...attIds, ...viewIds, event.user_id])];
+                
+                const payload = { title: `New comment on ${event.title}`, body: `${user.user_metadata?.display_name || user.email}: ${content}` };
                 for (const uId of allParticipants) {
                     if (uId !== user.id) {
                         sendPushNotificationToUser(uId, payload).catch(console.error);
@@ -58,8 +73,15 @@ export const eventDetailsController = {
                 }
             }
 
-            res.status(201).json(newComment);
+            res.status(201).json({
+                id: newComment.id,
+                eventId: newComment.event_id,
+                userId: newComment.user_id,
+                content: newComment.content,
+                createdAt: newComment.created_at
+            });
         } catch (error) {
+            console.error('Error adding comment:', error);
             res.status(500).json({ message: 'Failed to add comment' });
         }
     },
@@ -68,9 +90,24 @@ export const eventDetailsController = {
     getChecklist: async (req: Request, res: Response) => {
         const { eventId } = req.params;
         try {
-            const items = await db.select().from(eventChecklists).where(eq(eventChecklists.eventId, eventId));
-            res.json(items);
+            const { data: items, error } = await supabaseAdmin
+                .from('event_checklists')
+                .select('*')
+                .eq('event_id', eventId);
+            
+            if (error) throw error;
+
+            const formatted = items.map((i: any) => ({
+                id: i.id,
+                eventId: i.event_id,
+                title: i.title,
+                isCompleted: i.is_completed,
+                createdAt: i.created_at
+            }));
+
+            res.json(formatted);
         } catch (error) {
+            console.error('Error fetching checklist:', error);
             res.status(500).json({ message: 'Failed to fetch checklist' });
         }
     },
@@ -80,12 +117,26 @@ export const eventDetailsController = {
         const { title } = req.body;
         
         try {
-            const [newItem] = await db.insert(eventChecklists).values({
-                eventId,
-                title
-            }).returning();
-            res.status(201).json(newItem);
+            const { data: newItem, error } = await supabaseAdmin
+                .from('event_checklists')
+                .insert({
+                    event_id: eventId,
+                    title
+                })
+                .select()
+                .single();
+                
+            if (error) throw error;
+            
+            res.status(201).json({
+                id: newItem.id,
+                eventId: newItem.event_id,
+                title: newItem.title,
+                isCompleted: newItem.is_completed,
+                createdAt: newItem.created_at
+            });
         } catch (error) {
+            console.error('Error adding checklist item:', error);
             res.status(500).json({ message: 'Failed to add checklist item' });
         }
     },
@@ -96,15 +147,27 @@ export const eventDetailsController = {
         
         try {
             const updateData: any = {};
-            if (isCompleted !== undefined) updateData.isCompleted = isCompleted;
+            if (isCompleted !== undefined) updateData.is_completed = isCompleted;
             if (title !== undefined) updateData.title = title;
 
-            const [updatedItem] = await db.update(eventChecklists)
-                .set(updateData)
-                .where(eq(eventChecklists.id, id))
-                .returning();
-            res.json(updatedItem);
+            const { data: updatedItem, error } = await supabaseAdmin
+                .from('event_checklists')
+                .update(updateData)
+                .eq('id', id)
+                .select()
+                .single();
+                
+            if (error) throw error;
+
+            res.json({
+                id: updatedItem.id,
+                eventId: updatedItem.event_id,
+                title: updatedItem.title,
+                isCompleted: updatedItem.is_completed,
+                createdAt: updatedItem.created_at
+            });
         } catch (error) {
+            console.error('Error updating checklist item:', error);
             res.status(500).json({ message: 'Failed to update checklist item' });
         }
     },
@@ -112,9 +175,11 @@ export const eventDetailsController = {
     deleteChecklistItem: async (req: Request, res: Response) => {
         const { id } = req.params;
         try {
-            await db.delete(eventChecklists).where(eq(eventChecklists.id, id));
+            const { error } = await supabaseAdmin.from('event_checklists').delete().eq('id', id);
+            if (error) throw error;
             res.json({ message: 'Item deleted' });
         } catch (error) {
+            console.error('Error deleting checklist item:', error);
             res.status(500).json({ message: 'Failed to delete checklist item' });
         }
     },
@@ -127,31 +192,46 @@ export const eventDetailsController = {
 
         try {
             // Only event owner can toggle editors
-            const [event] = await db.select().from(events).where(eq(events.id, eventId));
-            if (!event || event.userId !== currentUser.id) {
+            const { data: event, error: evError } = await supabaseAdmin
+                .from('events')
+                .select('user_id')
+                .eq('id', eventId)
+                .single();
+
+            if (evError || !event || event.user_id !== currentUser.id) {
                 return res.status(403).json({ message: 'Not authorized to change roles' });
             }
 
             // Try updating attendee
-            let updated: any[] = await db.update(eventAttendees)
-                .set({ isEditor })
-                .where(sql`${eventAttendees.eventId} = ${eventId} AND ${eventAttendees.userId} = ${userId}`)
-                .returning();
+            const { data: updatedAtt, error: attError } = await supabaseAdmin
+                .from('event_attendees')
+                .update({ is_editor: isEditor })
+                .eq('event_id', eventId)
+                .eq('user_id', userId)
+                .select();
+
+            if (attError) throw attError;
 
             // Try updating viewer if not attendee
-            if (updated.length === 0) {
-                updated = await db.update(eventViewers)
-                    .set({ isEditor })
-                    .where(sql`${eventViewers.eventId} = ${eventId} AND ${eventViewers.userId} = ${userId}`)
-                    .returning();
+            let updatedView = [];
+            if (!updatedAtt || updatedAtt.length === 0) {
+                const { data, error: viewError } = await supabaseAdmin
+                    .from('event_viewers')
+                    .update({ is_editor: isEditor })
+                    .eq('event_id', eventId)
+                    .eq('viewer_id', userId)
+                    .select();
+                if (viewError) throw viewError;
+                updatedView = data || [];
             }
 
-            if (updated.length === 0) {
+            if ((!updatedAtt || updatedAtt.length === 0) && updatedView.length === 0) {
                 return res.status(404).json({ message: 'User is not a participant' });
             }
 
             res.json({ message: 'Role updated successfully', isEditor });
         } catch (error) {
+            console.error('Error toggling editor role:', error);
             res.status(500).json({ message: 'Failed to update role' });
         }
     }
