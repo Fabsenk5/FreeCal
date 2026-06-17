@@ -32,9 +32,9 @@ export const pushController = {
             }
 
             res.status(201).json({ message: 'Subscribed' });
-        } catch (error) {
+        } catch (error: any) {
             console.error('Push subscribe error:', error);
-            res.status(500).json({ message: 'Failed to subscribe' });
+            res.status(500).json({ message: 'Failed to subscribe', error: error?.message, stack: error?.stack });
         }
     },
 

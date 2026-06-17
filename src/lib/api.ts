@@ -692,7 +692,11 @@ export const api = {
             headers: await getHeaders(),
             body: data ? JSON.stringify(data) : undefined
         });
-        if (!res.ok) throw new Error(`API error: ${res.statusText}`);
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            console.error(`API Error on POST ${url}:`, errBody);
+            throw new Error(`API error: ${res.statusText} - ${errBody}`);
+        }
         return res.json();
     },
     put: async (url: string, data?: any) => {
