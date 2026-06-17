@@ -1,11 +1,8 @@
 import { Request, Response } from 'express';
-import { db } from '../db';
-import { eventComments, eventChecklists, events, eventAttendees, eventViewers, profiles } from '../db/schema';
-import { eq, sql, desc } from 'drizzle-orm';
+import { supabaseAdmin } from '../db/supabaseAdmin';
 import { sendPushNotificationToUser } from '../utils/push';
 
 export const eventDetailsController = {
-    // Comments
     getComments: async (req: Request, res: Response) => {
         const { eventId } = req.params;
         try {
