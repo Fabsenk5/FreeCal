@@ -51,7 +51,10 @@ export const usePushNotifications = () => {
             
             if (perm === 'granted') {
                 const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-                if (!vapidPublicKey) return false;
+                if (!vapidPublicKey) {
+                    console.error('Push missing VITE_VAPID_PUBLIC_KEY environment variable');
+                    return false;
+                }
 
                 const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
                 

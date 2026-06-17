@@ -182,6 +182,20 @@ export function Profile() {
     }
   };
 
+  const handleRegisterPush = async () => {
+    try {
+        const success = await subscribeToPush(false);
+        if (success) {
+            toast.success('Successfully registered device for notifications');
+        } else {
+            toast.error('Failed to register device. Check console for details.');
+        }
+    } catch (error) {
+        toast.error('Error during registration');
+        console.error(error);
+    }
+  };
+
   const handleTestPush = async () => {
     try {
       await api.post('/push/test', {});
@@ -191,19 +205,6 @@ export function Profile() {
     } catch (error) {
       console.error('Failed to send test push', error);
       toast.error('Failed to send test notification. Are you subscribed?');
-    }
-  };
-
-  const handleEnablePush = async () => {
-    setEnablingPush(true);
-    const success = await subscribeToPush();
-    setEnablingPush(false);
-    if (success) {
-      toast.success('Push notifications enabled!');
-    } else {
-      toast.error('Failed to enable push notifications', {
-        description: 'Please ensure notifications are allowed for this site in your system settings.'
-      });
     }
   };
 
@@ -309,21 +310,23 @@ export function Profile() {
 
             <div className="mt-4 pt-4 border-t border-border">
               <h4 className="text-sm font-medium mb-2">Notifications</h4>
-              <div className="space-y-2">
-                {permission !== 'granted' && (
-                  <Button 
-                    variant="default" 
-                    className="w-full flex items-center justify-center gap-2"
-                    onClick={handleEnablePush}
-                    disabled={enablingPush}
+              <div className="flex flex-col gap-3">
+                {permission !== 'granted' ? (
+                  <button
+                    onClick={handleRegisterPush}
+                    className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
                   >
-                    {enablingPush ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <BellRing className="w-4 h-4" />
-                    )}
+                    <BellRing className="w-4 h-4" />
                     Enable Notifications
-                  </Button>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleRegisterPush}
+                    className="w-full py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
+                  >
+                    <BellRing className="w-4 h-4" />
+                    Re-Register Push Token
+                  </button>
                 )}
                 
                 <Button 
