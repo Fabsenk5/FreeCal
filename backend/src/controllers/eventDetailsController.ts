@@ -2,6 +2,30 @@ import { Request, Response } from 'express';
 import { supabaseAdmin } from '../db/supabaseAdmin';
 import { sendPushNotificationToUser } from '../utils/push';
 
+const notifyEventParticipants = async (eventId: string, senderId: string, senderName: string, title: string, body: string) => {
+    try {
+        const { data: event } = await supabaseAdmin.from('events').select('user_id, title').eq('id', eventId).single();
+        if (!event) return;
+
+        const { data: attendees } = await supabaseAdmin.from('event_attendees').select('user_id').eq('event_id', eventId);
+        const { data: viewers } = await supabaseAdmin.from('event_viewers').select('user_id').eq('event_id', eventId);
+        
+        const attIds = attendees?.map((a: any) => a.user_id) || [];
+        const viewIds = viewers?.map((v: any) => v.user_id) || [];
+        
+        const allParticipants = [...new Set([...attIds, ...viewIds, event.user_id])];
+        
+        const payload = { title: title.replace('{eventTitle}', event.title), body, url: '/' };
+        for (const uId of allParticipants) {
+            if (uId !== senderId) {
+                sendPushNotificationToUser(uId, payload).catch(console.error);
+            }
+        }
+    } catch (error) {
+        console.error('Error notifying participants:', error);
+    }
+};
+
 export const eventDetailsController = {
     getComments: async (req: Request, res: Response) => {
         const { eventId } = req.params;
@@ -52,23 +76,14 @@ export const eventDetailsController = {
             if (error) throw error;
 
             // Notify others
-            const { data: event } = await supabaseAdmin.from('events').select('*').eq('id', eventId).single();
-            if (event) {
-                const { data: attendees } = await supabaseAdmin.from('event_attendees').select('user_id').eq('event_id', eventId);
-                const { data: viewers } = await supabaseAdmin.from('event_viewers').select('viewer_id').eq('event_id', eventId);
-                
-                const attIds = attendees?.map((a: any) => a.user_id) || [];
-                const viewIds = viewers?.map((v: any) => v.viewer_id) || [];
-                
-                const allParticipants = [...new Set([...attIds, ...viewIds, event.user_id])];
-                
-                const payload = { title: `New comment on ${event.title}`, body: `${user.user_metadata?.display_name || user.email}: ${content}` };
-                for (const uId of allParticipants) {
-                    if (uId !== user.id) {
-                        sendPushNotificationToUser(uId, payload).catch(console.error);
-                    }
-                }
-            }
+            const senderName = user.user_metadata?.display_name || user.email || 'Someone';
+            notifyEventParticipants(
+                eventId,
+                user.id,
+                senderName,
+                'New comment on {eventTitle}',
+                `${senderName}: ${content}`
+            );
 
             res.status(201).json({
                 id: newComment.id,
@@ -125,6 +140,16 @@ export const eventDetailsController = {
                 
             if (error) throw error;
             
+            const user = (req as any).user;
+            const senderName = user?.user_metadata?.display_name || user?.email || 'Someone';
+            notifyEventParticipants(
+                eventId,
+                user.id,
+                senderName,
+                'Checklist updated in {eventTitle}',
+                `${senderName} added: ${title}`
+            );
+            
             res.status(201).json({
                 id: newItem.id,
                 eventId: newItem.event_id,
@@ -155,6 +180,17 @@ export const eventDetailsController = {
                 .single();
                 
             if (error) throw error;
+
+            const user = (req as any).user;
+            const senderName = user?.user_metadata?.display_name || user?.email || 'Someone';
+            const actionText = isCompleted ? 'completed' : 'updated';
+            notifyEventParticipants(
+                updatedItem.event_id,
+                user.id,
+                senderName,
+                'Checklist updated in {eventTitle}',
+                `${senderName} ${actionText}: ${updatedItem.title}`
+            );
 
             res.json({
                 id: updatedItem.id,
