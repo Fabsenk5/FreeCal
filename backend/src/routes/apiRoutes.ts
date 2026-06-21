@@ -27,6 +27,7 @@ router.delete('/relationships/:id', deleteRelationship);
 // Push Notifications
 router.post('/push/subscribe', pushController.subscribe);
 router.post('/push/test', pushController.testNotification);
+router.post('/push/notify', pushController.sendNotification);
 
 // Event Details (Comments, Checklist, Editor)
 import { eventDetailsController } from '../controllers/eventDetailsController';

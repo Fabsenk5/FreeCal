@@ -55,5 +55,30 @@ export const pushController = {
             console.error('Test push error:', error);
             res.status(500).json({ message: 'Failed to send test push' });
         }
+    },
+
+    sendNotification: async (req: Request, res: Response) => {
+        try {
+            const user = (req as any).user;
+            if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+            const { userIds, title, body, url } = req.body;
+            if (!userIds || !Array.isArray(userIds) || !title) {
+                return res.status(400).json({ message: 'Invalid payload' });
+            }
+
+            const payload = { title, body, url: url || '/' };
+            
+            for (const targetId of userIds) {
+                if (targetId !== user.id) {
+                    sendPushNotificationToUser(targetId, payload).catch(console.error);
+                }
+            }
+
+            res.json({ message: 'Notifications sent' });
+        } catch (error) {
+            console.error('Send push error:', error);
+            res.status(500).json({ message: 'Failed to send push notifications' });
+        }
     }
 };

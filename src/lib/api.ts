@@ -265,6 +265,17 @@ export async function createEvent(userId: string, eventData: any): Promise<Event
         if (viewError) console.error('Error inserting viewers:', viewError);
     }
 
+    // Send push notifications
+    const allTargets = [...new Set([...attendees, ...viewers])];
+    if (allTargets.length > 0) {
+        api.post('/push/notify', {
+            userIds: allTargets,
+            title: `New Event: ${newEvent.title}`,
+            body: `You have been added to a new event.`,
+            url: '/'
+        }).catch(e => console.error('Push notify error:', e));
+    }
+
     return {
         ...newEvent,
         attendees,
@@ -323,6 +334,17 @@ export async function updateEvent(eventId: string, userId: string, eventData: an
                 viewers.map(vId => ({ event_id: eventId, user_id: vId }))
             );
         }
+    }
+
+    // Send push notifications
+    const allTargets = [...new Set([...(attendees || []), ...(viewers || [])])];
+    if (allTargets.length > 0) {
+        api.post('/push/notify', {
+            userIds: allTargets,
+            title: `Event Updated: ${updatedEvent.title}`,
+            body: `An event you are part of has been updated.`,
+            url: '/'
+        }).catch(e => console.error('Push notify error:', e));
     }
 
     return {
