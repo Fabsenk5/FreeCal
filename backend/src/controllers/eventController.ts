@@ -4,6 +4,19 @@ import { events, eventAttendees, eventViewers, profiles } from '../db/schema';
 import { eq, or, sql, inArray } from 'drizzle-orm';
 import { sendPushNotificationToUser } from '../utils/push';
 
+function formatDateForNotification(dateInput: string | Date): string {
+    try {
+        const date = new Date(dateInput);
+        if (isNaN(date.getTime())) return '';
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}.${month}.${year}`;
+    } catch {
+        return '';
+    }
+}
+
 export const getEvents = async (req: Request & { user?: any }, res: Response) => {
     if (!req.user) return res.sendStatus(401);
     const userId = req.user.id;
@@ -197,10 +210,12 @@ export const createEvent = async (req: Request & { user?: any }, res: Response) 
         });
 
         // Notify participants
+        const formattedDate = formatDateForNotification(newEvent.startTime);
+        const dateStr = formattedDate ? ` (${formattedDate})` : '';
         const notificationPayload = {
-            title: `New Event: ${newEvent.title}`,
+            title: `New Event: ${newEvent.title}${dateStr}`,
             body: `You have been added to a new event by ${req.user?.display_name || 'someone'}.`,
-            url: '/'
+            url: `/?eventId=${newEvent.id}`
         };
         for (const uId of [...new Set([...attendees, ...viewers])]) {
             if (uId !== userId) {
@@ -307,10 +322,12 @@ export const updateEvent = async (req: Request & { user?: any }, res: Response) 
         });
 
         // Notify participants (excluding the updater)
+        const formattedDate = formatDateForNotification(updatedEvent.startTime);
+        const dateStr = formattedDate ? ` (${formattedDate})` : '';
         const notificationPayload = {
-            title: `Event Updated: ${updatedEvent.title}`,
+            title: `Event Updated: ${updatedEvent.title}${dateStr}`,
             body: `An event you are part of has been updated.`,
-            url: '/'
+            url: `/?eventId=${updatedEvent.id}`
         };
         const allParticipants = [...new Set([...(attendees || []), ...(viewers || []), existing.userId])];
         for (const uId of allParticipants) {
@@ -408,6 +425,20 @@ export const respondToInvite = async (req: Request & { user?: any }, res: Respon
             .where(sql`${eventAttendees.eventId} = ${id} AND ${eventAttendees.userId} = ${req.user.id}`);
 
         res.json({ message: `Invitation ${status}` });
+
+        // Notify event creator about the response
+        const [event] = await db.select().from(events).where(eq(events.id, id));
+        if (event && event.userId !== req.user.id) {
+            const formattedDate = formatDateForNotification(event.startTime);
+            const dateStr = formattedDate ? ` (${formattedDate})` : '';
+            const statusText = status === 'accepted' ? 'accepted' : 'declined';
+            const payload = {
+                title: `${req.user.display_name || 'Someone'} ${statusText} your invite`,
+                body: `Invitation for "${event.title}"${dateStr} was ${statusText}.`,
+                url: `/?eventId=${id}`
+            };
+            sendPushNotificationToUser(event.userId, payload).catch(console.error);
+        }
 
     } catch (error) {
         console.error('Respond Invite Error:', error);

@@ -64,6 +64,8 @@ export function Profile() {
 
   const { subscribeToPush, permission } = usePushNotifications();
   const [enablingPush, setEnablingPush] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   // Sync state when profile updates
   useEffect(() => {
@@ -73,6 +75,17 @@ export function Profile() {
       setCalendarColor(profile.calendar_color || 'hsl(217, 91%, 60%)');
     }
   }, [profile]);
+
+  // Detect iOS and standalone mode
+  useEffect(() => {
+    const ua = navigator.userAgent || '';
+    const isIOSDevice = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    setIsIOS(isIOSDevice);
+    setIsStandalone(
+      ('standalone' in window.navigator && (window.navigator as any).standalone === true) ||
+      window.matchMedia('(display-mode: standalone)').matches
+    );
+  }, []);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -310,36 +323,62 @@ export function Profile() {
 
             <div className="mt-4 pt-4 border-t border-border">
               <h4 className="text-sm font-medium mb-2">Notifications</h4>
-              <div className="flex flex-col gap-3">
-                {permission !== 'granted' ? (
-                  <button
-                    onClick={handleRegisterPush}
-                    className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
+              {isIOS && !isStandalone ? (
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">📲</span>
+                    <div className="flex-1">
+                      <h5 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">
+                        Add to Home Screen
+                      </h5>
+                      <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed mb-2">
+                        To receive push notifications on iOS, you need to install this app to your Home Screen first.
+                      </p>
+                      <ol className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed space-y-1 list-decimal list-inside">
+                        <li>Tap the <strong>Share</strong> button <span className="inline-block">⬆️</span> in Safari</li>
+                        <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
+                        <li>Open the app from your Home Screen</li>
+                        <li>Come back here to enable notifications</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {permission !== 'granted' ? (
+                    <button
+                      onClick={handleRegisterPush}
+                      className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
+                    >
+                      <BellRing className="w-4 h-4" />
+                      Enable Notifications
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleRegisterPush}
+                      className="w-full py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
+                    >
+                      <BellRing className="w-4 h-4" />
+                      Re-Register Push Token
+                    </button>
+                  )}
+                  
+                  <Button 
+                    variant="secondary" 
+                    className="w-full flex items-center justify-center gap-2"
+                    onClick={handleTestPush}
                   >
                     <BellRing className="w-4 h-4" />
-                    Enable Notifications
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleRegisterPush}
-                    className="w-full py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
-                  >
-                    <BellRing className="w-4 h-4" />
-                    Re-Register Push Token
-                  </button>
-                )}
-                
-                <Button 
-                  variant="secondary" 
-                  className="w-full flex items-center justify-center gap-2"
-                  onClick={handleTestPush}
-                >
-                  <BellRing className="w-4 h-4" />
-                  Test Push Notification
-                </Button>
-              </div>
+                    Test Push Notification
+                  </Button>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground mt-2 text-center">
-                {permission === 'granted' ? 'Notifications are allowed.' : 'Ensure notifications are enabled on your device.'}
+                {isIOS && !isStandalone
+                  ? 'Install the app to your Home Screen to enable notifications.'
+                  : permission === 'granted'
+                    ? 'Notifications are allowed.'
+                    : 'Ensure notifications are enabled on your device.'}
               </p>
             </div>
           </div>

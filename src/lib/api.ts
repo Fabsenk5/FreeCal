@@ -9,6 +9,20 @@
  */
 import { supabase } from './supabase';
 
+// Helper to format dates for notification titles
+function formatDateForNotification(isoString: string): string {
+    try {
+        const date = new Date(isoString);
+        if (isNaN(date.getTime())) return '';
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}.${month}.${year}`;
+    } catch {
+        return '';
+    }
+}
+
 // ============================================================
 // TYPE DEFINITIONS (unchanged from old api.ts)
 // ============================================================
@@ -268,11 +282,13 @@ export async function createEvent(userId: string, eventData: any): Promise<Event
     // Send push notifications
     const allTargets = [...new Set([...attendees, ...viewers])];
     if (allTargets.length > 0) {
+        const formattedDate = formatDateForNotification(newEvent.start_time);
+        const dateStr = formattedDate ? ` (${formattedDate})` : '';
         api.post('/push/notify', {
             userIds: allTargets,
-            title: `New Event: ${newEvent.title}`,
+            title: `New Event: ${newEvent.title}${dateStr}`,
             body: `You have been added to a new event.`,
-            url: '/'
+            url: `/?eventId=${newEvent.id}`
         }).catch(e => console.error('Push notify error:', e));
     }
 
@@ -339,11 +355,13 @@ export async function updateEvent(eventId: string, userId: string, eventData: an
     // Send push notifications
     const allTargets = [...new Set([...(attendees || []), ...(viewers || [])])];
     if (allTargets.length > 0) {
+        const formattedDate = formatDateForNotification(updatedEvent.start_time);
+        const dateStr = formattedDate ? ` (${formattedDate})` : '';
         api.post('/push/notify', {
             userIds: allTargets,
-            title: `Event Updated: ${updatedEvent.title}`,
+            title: `Event Updated: ${updatedEvent.title}${dateStr}`,
             body: `An event you are part of has been updated.`,
-            url: '/'
+            url: `/?eventId=${updatedEvent.id}`
         }).catch(e => console.error('Push notify error:', e));
     }
 
@@ -355,8 +373,38 @@ export async function updateEvent(eventId: string, userId: string, eventData: an
 }
 
 export async function deleteEvent(eventId: string): Promise<void> {
+    // Fetch event details + participants before deleting
+    const { data: event } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single();
+
+    let allTargets: string[] = [];
+    if (event) {
+        const [attendeesResult, viewersResult] = await Promise.all([
+            supabase.from('event_attendees').select('user_id').eq('event_id', eventId),
+            supabase.from('event_viewers').select('user_id').eq('event_id', eventId),
+        ]);
+        const attendeeIds = (attendeesResult.data || []).map(a => a.user_id);
+        const viewerIds = (viewersResult.data || []).map(v => v.user_id);
+        allTargets = [...new Set([...attendeeIds, ...viewerIds])];
+    }
+
     const { error } = await supabase.from('events').delete().eq('id', eventId);
     if (error) throw new Error(error.message);
+
+    // Send push notifications after successful delete
+    if (event && allTargets.length > 0) {
+        const formattedDate = formatDateForNotification(event.start_time);
+        const dateStr = formattedDate ? ` (${formattedDate})` : '';
+        api.post('/push/notify', {
+            userIds: allTargets,
+            title: `Event Cancelled: ${event.title}${dateStr}`,
+            body: `An event you were part of has been cancelled.`,
+            url: '/'
+        }).catch(e => console.error('Push notify error:', e));
+    }
 }
 
 export async function excludeOccurrence(eventId: string, excludedDate: string): Promise<string[]> {
@@ -389,6 +437,27 @@ export async function respondToInvite(eventId: string, userId: string, status: '
         .eq('user_id', userId);
 
     if (error) throw new Error(error.message);
+
+    // Fetch event and responder profile to notify the event creator
+    const [eventResult, profileResult] = await Promise.all([
+        supabase.from('events').select('id, title, user_id, start_time').eq('id', eventId).single(),
+        supabase.from('profiles').select('display_name').eq('id', userId).single(),
+    ]);
+
+    const event = eventResult.data;
+    const responderProfile = profileResult.data;
+    if (event && event.user_id !== userId) {
+        const responderName = responderProfile?.display_name || 'Someone';
+        const statusText = status === 'accepted' ? 'accepted' : 'declined';
+        const formattedDate = formatDateForNotification(event.start_time);
+        const dateStr = formattedDate ? ` (${formattedDate})` : '';
+        api.post('/push/notify', {
+            userIds: [event.user_id],
+            title: `Invite ${statusText}: ${event.title}${dateStr}`,
+            body: `${responderName} has ${statusText} your event invitation.`,
+            url: `/?eventId=${event.id}`
+        }).catch(e => console.error('Push notify error:', e));
+    }
 }
 
 // ============================================================
@@ -457,10 +526,33 @@ export async function createRelationship(userId: string, email: string): Promise
         .single();
 
     if (error) throw new Error(error.message);
+
+    // Send push notification to the target user
+    const { data: senderProfile } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', userId)
+        .single();
+
+    const senderName = senderProfile?.display_name || 'Someone';
+    api.post('/push/notify', {
+        userIds: [targetUser.id],
+        title: `New Connection Request`,
+        body: `${senderName} wants to connect with you.`,
+        url: '/?tab=profile'
+    }).catch(e => console.error('Push notify error:', e));
+
     return newRel;
 }
 
 export async function updateRelationship(relationshipId: string, status: string): Promise<any> {
+    // Fetch the relationship first to know who to notify
+    const { data: existing } = await supabase
+        .from('relationships')
+        .select('*')
+        .eq('id', relationshipId)
+        .single();
+
     const { data, error } = await supabase
         .from('relationships')
         .update({ status })
@@ -469,6 +561,27 @@ export async function updateRelationship(relationshipId: string, status: string)
         .single();
 
     if (error) throw new Error(error.message);
+
+    // Send push notification if accepted
+    if (status === 'accepted' && existing) {
+        const accepterId = data.related_user_id;
+        const requesterId = data.user_id;
+
+        const { data: accepterProfile } = await supabase
+            .from('profiles')
+            .select('display_name')
+            .eq('id', accepterId)
+            .single();
+
+        const accepterName = accepterProfile?.display_name || 'Someone';
+        api.post('/push/notify', {
+            userIds: [requesterId],
+            title: `Connection Accepted!`,
+            body: `${accepterName} has accepted your connection request.`,
+            url: '/?tab=profile'
+        }).catch(e => console.error('Push notify error:', e));
+    }
+
     return data;
 }
 

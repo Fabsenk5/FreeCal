@@ -2,9 +2,22 @@ import { Request, Response } from 'express';
 import { supabaseAdmin } from '../db/supabaseAdmin';
 import { sendPushNotificationToUser } from '../utils/push';
 
+function formatDateForNotification(dateInput: string | Date): string {
+    try {
+        const date = new Date(dateInput);
+        if (isNaN(date.getTime())) return '';
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}.${month}.${year}`;
+    } catch {
+        return '';
+    }
+}
+
 const notifyEventParticipants = async (eventId: string, senderId: string, senderName: string, title: string, body: string) => {
     try {
-        const { data: event } = await supabaseAdmin.from('events').select('user_id, title').eq('id', eventId).single();
+        const { data: event } = await supabaseAdmin.from('events').select('user_id, title, start_time').eq('id', eventId).single();
         if (!event) return;
 
         const { data: attendees } = await supabaseAdmin.from('event_attendees').select('user_id').eq('event_id', eventId);
@@ -15,7 +28,9 @@ const notifyEventParticipants = async (eventId: string, senderId: string, sender
         
         const allParticipants = [...new Set([...attIds, ...viewIds, event.user_id])];
         
-        const payload = { title: title.replace('{eventTitle}', event.title), body, url: '/' };
+        const formattedDate = formatDateForNotification(event.start_time);
+        const dateStr = formattedDate ? ` (${formattedDate})` : '';
+        const payload = { title: title.replace('{eventTitle}', event.title) + dateStr, body, url: `/?eventId=${eventId}` };
         for (const uId of allParticipants) {
             if (uId !== senderId) {
                 sendPushNotificationToUser(uId, payload).catch(console.error);

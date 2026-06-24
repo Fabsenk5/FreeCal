@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { db } from '../db';
 import { relationships, profiles } from '../db/schema';
 import { eq, or, and, inArray } from 'drizzle-orm';
+import { sendPushNotificationToUser } from '../utils/push';
 
 export const getRelationships = async (req: Request & { user?: any }, res: Response) => {
     if (!req.user) return res.sendStatus(401);
@@ -108,6 +109,15 @@ export const createRelationship = async (req: Request & { user?: any }, res: Res
             updated_at: newRel.updatedAt?.toISOString(),
         });
 
+        // Notify the target user about the friend request
+        const [senderProfile] = await db.select().from(profiles).where(eq(profiles.id, userId));
+        const senderName = senderProfile?.displayName || 'Someone';
+        sendPushNotificationToUser(targetUser.id, {
+            title: 'New Friend Request',
+            body: `${senderName} sent you a friend request.`,
+            url: '/?tab=profile'
+        }).catch(console.error);
+
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error creating relationship', error });
@@ -145,6 +155,17 @@ export const updateRelationship = async (req: Request & { user?: any }, res: Res
             created_at: updated.createdAt?.toISOString(),
             updated_at: updated.updatedAt?.toISOString(),
         });
+
+        // Notify the original requester when their request is accepted
+        if (status === 'accepted') {
+            const [accepterProfile] = await db.select().from(profiles).where(eq(profiles.id, userId));
+            const accepterName = accepterProfile?.displayName || 'Someone';
+            sendPushNotificationToUser(existing.userId, {
+                title: 'Friend Request Accepted',
+                body: `${accepterName} accepted your friend request.`,
+                url: '/?tab=profile'
+            }).catch(console.error);
+        }
 
     } catch (error) {
         console.error(error);
