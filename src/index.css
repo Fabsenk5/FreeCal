@@ -543,3 +543,39 @@
     transform: translateX(100%);
   }
 }
+
+/* Birthday Event Card Styling */
+.birthday-event-card {
+  background: linear-gradient(
+    135deg,
+    hsla(320, 80%, 60%, 0.2) 0%,
+    hsla(280, 80%, 60%, 0.15) 100%
+  ) !important;
+  border: 2px solid hsla(320, 80%, 60%, 0.5) !important;
+  border-left-width: 4px !important;
+  border-left-color: hsl(320, 80%, 60%) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.birthday-event-card::before {
+  content: '🎉';
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 1rem;
+  animation: bounce 2s infinite ease-in-out;
+}
+
+.birthday-event-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    45deg,
+    transparent 40%,
+    hsla(320, 80%, 90%, 0.1) 50%,
+    transparent 60%
+  );
+  animation: shimmer 3s ease-in-out infinite;
+}

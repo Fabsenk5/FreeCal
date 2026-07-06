@@ -15,7 +15,9 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { ValentineCountdown } from '@/components/valentine/ValentineCountdown';
+import { BirthdayCountdown } from '@/components/birthday/BirthdayCountdown';
 import { useValentineEvent } from '@/hooks/useValentineEvent';
+import { useBirthdayEvent } from '@/hooks/useBirthdayEvent';
 import { expandRecurringEvents } from '@/utils/recurrence';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { EventComments } from '@/components/calendar/EventComments';
@@ -47,6 +49,7 @@ export function CalendarView({
 
   const { events: rawEvents, loading, refreshEvents } = useEvents();
   const valentineEvents = useValentineEvent(rawEvents); // Inject Valentine event
+  const birthdayEvents = useBirthdayEvent(valentineEvents); // Inject Birthday events
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -58,7 +61,7 @@ export function CalendarView({
   const viewStart = new Date(year, month - 1, 1); // Previous month start
   const viewEnd = new Date(year, month + 2, 0);   // Next month end
 
-  const events = expandRecurringEvents(valentineEvents, viewStart, viewEnd);
+  const events = expandRecurringEvents(birthdayEvents, viewStart, viewEnd);
 
   const { relationships, loading: relLoading } = useRelationships();
   const { profile } = useAuth();
@@ -224,6 +227,9 @@ export function CalendarView({
       < div className="flex-1 overflow-y-auto pb-20 px-4" >
         {/* Valentine's Day Countdown */}
         <ValentineCountdown />
+        
+        {/* Birthday Countdown */}
+        <BirthdayCountdown />
 
         {/* Month/Year navigation with dropdowns */}
         < div className="flex items-center justify-between py-4 gap-4" >
@@ -312,6 +318,7 @@ export function CalendarView({
                 daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
               } : undefined,
               isValentineEvent: e.isValentineEvent,
+              isBirthdayEvent: e.isBirthdayEvent,
             }))
           }
           selectedDate={selectedDate}
@@ -350,6 +357,7 @@ export function CalendarView({
                     daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
                   } : undefined,
                   isValentineEvent: e.isValentineEvent,
+                  isBirthdayEvent: e.isBirthdayEvent,
                 }))}
                 onEventClick={(event) => setSelectedEventId(event.id)}
               />
@@ -399,6 +407,7 @@ export function CalendarView({
                         daysOfWeek: selectedEvent.recurrence_days?.map(d => parseInt(d)) || undefined,
                       } : undefined,
                       isValentineEvent: selectedEvent.isValentineEvent,
+                      isBirthdayEvent: selectedEvent.isBirthdayEvent,
                     }}
                   />
                   <div className="flex gap-2">
