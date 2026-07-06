@@ -16,7 +16,8 @@ import { PendingRequestsSection } from '@/components/profile/PendingRequestsSect
 import { AdminPanel } from '@/components/profile/AdminPanel';
 import { DataExport } from '@/components/profile/DataExport';
 import { useValentine } from '@/contexts/ValentineContext';
-import { Heart } from 'lucide-react';
+import { useBirthday } from '@/contexts/BirthdayContext';
+import { Heart, PartyPopper } from 'lucide-react';
 
 function AdminValentineToggle() {
   const { devModeEnabled, toggleDevMode } = useValentine();
@@ -36,6 +37,32 @@ function AdminValentineToggle() {
           size="sm"
           onClick={toggleDevMode}
           className={devModeEnabled ? "bg-red-500 hover:bg-red-600 border-0" : "border-pink-200 hover:border-pink-300"}
+        >
+          {devModeEnabled ? 'Deactivate' : 'Activate'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function AdminBirthdayToggle() {
+  const { devModeEnabled, toggleDevMode } = useBirthday();
+
+  return (
+    <div className="bg-gradient-to-r from-fuchsia-50 to-purple-50 dark:from-fuchsia-950/20 dark:to-purple-950/20 p-4 rounded-xl border border-fuchsia-200 dark:border-fuchsia-800 mt-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <PartyPopper className={`w-5 h-5 ${devModeEnabled ? 'text-fuchsia-500 animate-bounce' : 'text-muted-foreground'}`} />
+          <div>
+            <h3 className="text-sm font-semibold text-fuchsia-700 dark:text-fuchsia-300">Birthday Test Mode</h3>
+            <p className="text-xs text-muted-foreground">Force enable Birthday features globally for this session</p>
+          </div>
+        </div>
+        <Button
+          variant={devModeEnabled ? "default" : "outline"}
+          size="sm"
+          onClick={toggleDevMode}
+          className={devModeEnabled ? "bg-fuchsia-500 hover:bg-fuchsia-600 border-0 text-white" : "border-fuchsia-200 hover:border-fuchsia-300"}
         >
           {devModeEnabled ? 'Deactivate' : 'Activate'}
         </Button>
@@ -459,6 +486,7 @@ export function Profile() {
         {['fabiank5@hotmail.com', 'fabiank5@hotmaill.com'].includes(profile?.email || '') && (
           <div className="mb-6">
             <AdminValentineToggle />
+            <AdminBirthdayToggle />
             <div className="mt-4">
               <AdminPanel />
             </div>
