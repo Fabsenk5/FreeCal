@@ -21,8 +21,8 @@ interface BirthdayContextType {
 const BirthdayContext = createContext<BirthdayContextType | undefined>(undefined);
 
 // Birthday 2026 dates (Central European Time)
-const BIRTHDAY_START = new Date('2026-07-15T12:00:00+02:00'); // Start showing 2 days before
-const BIRTHDAY_COUNTDOWN_END = new Date('2026-07-17T00:00:00+02:00'); // July 17, midnight CET (Birthday)
+const BIRTHDAY_START = new Date('2026-07-17T12:00:00+02:00'); // Start showing 2 days before
+const BIRTHDAY_COUNTDOWN_END = new Date('2026-07-19T00:00:00+02:00'); // July 19, midnight CET (Birthday, Sunday)
 const BIRTHDAY_END = new Date('2026-07-20T00:00:00+02:00'); // Monday after the weekend
 
 function calculateTimeRemaining(target: Date): TimeRemaining {
