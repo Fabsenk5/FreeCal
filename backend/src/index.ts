@@ -46,7 +46,7 @@ if (!process.env.FRONTEND_URL) {
     app.use(cors({ credentials: true }));
 } else {
     const allowedOrigins = [
-        ...process.env.FRONTEND_URL.split(',').map(o => o.trim()),
+        ...process.env.FRONTEND_URL.split(',').map(o => o.trim().replace(/\/+$/, '')),
         'http://localhost:5173',
     ];
     console.log('[Server] CORS allowed origins:', allowedOrigins);
