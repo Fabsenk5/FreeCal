@@ -14,7 +14,7 @@ jobs:
         run: |
           echo "Pinging Render backend to prevent cold start..."
           # --fail makes curl exit non-zero on HTTP errors, failing the workflow
-          curl --fail -sS -o /dev/null -w "Backend: %{http_code} in %{time_total}s\n" https://freecal-backend.onrender.com/health
+          curl --fail -sS -o /dev/null -w "Backend: %{http_code} in %{time_total}s\n" https://freecal.onrender.com/health
 
       - name: Ping Vercel Frontend (optional)
         run: |
