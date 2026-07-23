@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Camera, Upload, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { processCalendarScreenshot, OCREventData } from '@/utils/calendarOCR';
+import type { OCREventData } from '@/utils/calendarOCR';
 
 interface ScreenshotImportDialogProps {
   open: boolean;
@@ -38,6 +38,10 @@ export function ScreenshotImportDialog({
     setProgress(0);
 
     try {
+      // Load the OCR module on demand so tesseract.js (~500 KB) stays out of
+      // the initial bundle. The processing UI above covers the load time.
+      const { processCalendarScreenshot } = await import('@/utils/calendarOCR');
+
       // Process with OCR
       const eventData = await processCalendarScreenshot(file, (p) => {
         setProgress(p);

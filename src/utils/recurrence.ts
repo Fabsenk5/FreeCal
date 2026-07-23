@@ -1,9 +1,50 @@
 import { RRule, RRuleSet, rrulestr } from 'rrule';
+import type { Options, Weekday } from 'rrule';
 import { EventWithAttendees } from '@/lib/api';
 
 /**
+ * Reinterprets the local wall-clock components of `date` as a UTC timestamp
+ * ("floating" time). rrule always iterates over the UTC components of its
+ * dates, so feeding it floating dates makes it expand in local wall-clock
+ * time: a 10:00 local event stays 10:00 local on every occurrence, even
+ * across DST transitions.
+ */
+function toFloatingUTC(date: Date): Date {
+    return new Date(Date.UTC(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        date.getHours(),
+        date.getMinutes(),
+        date.getSeconds(),
+        date.getMilliseconds()
+    ));
+}
+
+/**
+ * Inverse of {@link toFloatingUTC}: reads the UTC components of a floating
+ * occurrence as local wall-clock components, yielding the real local Date
+ * the user should see for that occurrence.
+ */
+function fromFloatingUTC(date: Date): Date {
+    return new Date(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        date.getUTCHours(),
+        date.getUTCMinutes(),
+        date.getUTCSeconds(),
+        date.getUTCMilliseconds()
+    );
+}
+
+/**
  * Expands recurring events within a given date range.
- * 
+ *
+ * Expansion happens in local wall-clock time (see {@link toFloatingUTC}):
+ * occurrences keep the local time of day of the event start across DST
+ * boundaries, instead of drifting by the DST offset.
+ *
  * @param events List of events (some may be recurring)
  * @param startRange Start of the view range
  * @param endRange End of the view range
@@ -53,7 +94,7 @@ export function expandRecurringEvents(
 
             // Determine Days (for weekly)
             // Map '0'...'6' or 'SU'...'SA'
-            let byweekday: any[] | null = null;
+            let byweekday: Weekday[] | null = null;
             if (Array.isArray(event.recurrence_days) && event.recurrence_days.length > 0) {
                 byweekday = event.recurrence_days.map(d => {
                     const day = parseInt(String(d), 10);
@@ -67,16 +108,18 @@ export function expandRecurringEvents(
                         case 6: return RRule.SA;
                         default: return null;
                     }
-                }).filter(d => d !== null);
+                }).filter((d): d is Weekday => d !== null);
             }
 
 
-            // Create RRule
-            const ruleOptions: any = {
+            // Create RRule. All dates handed to rrule are converted to
+            // floating UTC so the expansion happens in local wall-clock
+            // time (see toFloatingUTC) and does not drift across DST changes.
+            const ruleOptions: Partial<Options> = {
                 freq,
                 interval,
-                dtstart: eventStart, // Occurrences start from event start
-                until: event.recurrence_end_date ? new Date(event.recurrence_end_date) : undefined,
+                dtstart: toFloatingUTC(eventStart), // Occurrences start from event start
+                until: event.recurrence_end_date ? toFloatingUTC(new Date(event.recurrence_end_date)) : undefined,
             };
 
             if (byweekday && byweekday.length > 0) {
@@ -85,15 +128,21 @@ export function expandRecurringEvents(
 
             const rule = new RRule(ruleOptions);
 
-            // Get all occurrences between range
-            // We pad the range slightly to ensuring we catch edge cases
-            const occurrences = rule.between(startRange, endRange, true);
+            // Get all occurrences between range (range converted to the same
+            // floating wall-clock space; `between` compares plain timestamps).
+            const occurrences = rule.between(toFloatingUTC(startRange), toFloatingUTC(endRange), true);
 
-            // Filter out excluded occurrences (recurrence_exceptions)
+            // Translate occurrences back to real local dates.
+            const localOccurrences = occurrences.map(fromFloatingUTC);
+
+            // Filter out excluded occurrences (recurrence_exceptions).
+            // Exceptions are stored as ISO timestamps of an occurrence's
+            // start_time (see excludeOccurrence in api.ts); comparing local
+            // calendar days on both sides matches what the user sees.
             const exceptions = new Set(
                 (event.recurrence_exceptions || []).map(d => new Date(d).toDateString())
             );
-            const filteredOccurrences = occurrences.filter(
+            const filteredOccurrences = localOccurrences.filter(
                 date => !exceptions.has(date.toDateString())
             );
 

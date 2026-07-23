@@ -68,9 +68,18 @@ export interface Event {
     updated_at: string;
 }
 
+export interface EventAttendeeDetail {
+    /** Row id of event_attendees — populated by fetchEvents; absent in synthetic shapes (e.g. createEvent result). */
+    id?: string;
+    userId: string;
+    /** Snake-case alias of userId — populated by fetchEvents for consumers that read raw column names. */
+    user_id?: string;
+    status: 'pending' | 'accepted' | 'declined';
+}
+
 export interface EventWithAttendees extends Event {
     attendees: any[];
-    attendees_details?: { userId: string; status: 'pending' | 'accepted' | 'declined' }[];
+    attendees_details?: EventAttendeeDetail[];
     viewers?: string[];
     creator_name?: string;
     creator_color?: string;
@@ -155,22 +164,39 @@ function throwOnError<T>(result: { data: T | null; error: any }): T {
 // EVENTS API
 // ============================================================
 
-export async function fetchEvents(userId: string): Promise<EventWithAttendees[]> {
+export interface FetchEventsOptions {
+    rangeStart?: Date;
+    rangeEnd?: Date;
+}
+
+export async function fetchEvents(userId: string, opts?: FetchEventsOptions): Promise<EventWithAttendees[]> {
     // RLS handles filtering — we just request all events we can see
     // We need to join attendees and viewers
 
-    const { data: eventsList, error } = await supabase
-        .from('events')
-        .select('*');
+    let query = supabase.from('events').select('*');
+
+    // Optional server-side time-range filter (P4): keep events overlapping
+    // [rangeStart, rangeEnd]. Recurring events are kept whenever they start
+    // before the range end, because their concrete occurrences are expanded
+    // client-side (src/utils/recurrence.ts) — a series can reach into the
+    // range even when the master event's end_time lies before rangeStart.
+    if (opts?.rangeStart && opts?.rangeEnd) {
+        query = query
+            .lte('start_time', opts.rangeEnd.toISOString())
+            .or(`end_time.gte.${opts.rangeStart.toISOString()},recurrence_type.neq.none`);
+    }
+
+    const { data: eventsList, error } = await query;
 
     if (error) throw new Error(error.message);
     if (!eventsList || eventsList.length === 0) return [];
 
     const eventIds = eventsList.map(e => e.id);
 
-    // Fetch attendees and viewers in parallel
+    // Fetch attendees and viewers in parallel.
+    // Explicit attendee column list guarantees the RSVP status is loaded (R19).
     const [attendeesResult, viewersResult] = await Promise.all([
-        supabase.from('event_attendees').select('*').in('event_id', eventIds),
+        supabase.from('event_attendees').select('id, event_id, user_id, status').in('event_id', eventIds),
         supabase.from('event_viewers').select('*').in('event_id', eventIds),
     ]);
 
@@ -218,7 +244,9 @@ export async function fetchEvents(userId: string): Promise<EventWithAttendees[]>
             ...event,
             attendees: attendeeIds,
             attendees_details: eventAttendees.map(a => ({
+                id: a.id,
                 userId: a.user_id,
+                user_id: a.user_id,
                 status: a.status as 'pending' | 'accepted' | 'declined',
             })),
             viewers: viewerIds,
@@ -295,8 +323,31 @@ export async function createEvent(userId: string, eventData: any): Promise<Event
     return {
         ...newEvent,
         attendees,
-        attendees_details: attendees.map(id => ({ userId: id, status: 'pending' as const })),
+        attendees_details: attendees.map(id => ({ userId: id, user_id: id, status: 'pending' as const })),
         viewers,
+    };
+}
+
+export interface ParticipantDiff {
+    /** user_ids in desired but not in existing — must be inserted. */
+    toInsert: string[];
+    /** user_ids in existing but not in desired — must be deleted. */
+    toDelete: string[];
+    /** user_ids in both — left untouched so row state (RSVP status, flags) survives. */
+    toKeep: string[];
+}
+
+/**
+ * Pure diff between the currently stored participant user_ids and the
+ * desired list. Exported for unit testing (src/lib/api.test.ts).
+ */
+export function computeParticipantDiff(existingUserIds: string[], desiredUserIds: string[]): ParticipantDiff {
+    const existingSet = new Set(existingUserIds);
+    const desiredSet = new Set(desiredUserIds);
+    return {
+        toInsert: [...desiredSet].filter(id => !existingSet.has(id)),
+        toDelete: existingUserIds.filter(id => !desiredSet.has(id)),
+        toKeep: existingUserIds.filter(id => desiredSet.has(id)),
     };
 }
 
@@ -332,23 +383,69 @@ export async function updateEvent(eventId: string, userId: string, eventData: an
     const attendees: string[] | undefined = eventData.attendees;
     const viewers: string[] | undefined = eventData.viewers;
 
+    // Diff-based participant update (R2): the previous
+    // delete-all-then-reinsert approach reset every attendee's RSVP status
+    // to the DB default ('pending') on each edit and, worse, left the event
+    // without any participants if the insert failed after the delete. We now
+    // load the current rows, delete only removed participants and insert only
+    // newly added ones; kept rows stay untouched, so their status and
+    // is_attendee/is_editor flags are preserved.
+    // Note: still not transactional, but a failure can now only lose the new
+    // inserts instead of the whole participant list.
+
     // Update attendees
     if (attendees !== undefined) {
-        await supabase.from('event_attendees').delete().eq('event_id', eventId);
-        if (attendees.length > 0) {
-            await supabase.from('event_attendees').insert(
-                attendees.map(aId => ({ event_id: eventId, user_id: aId }))
+        const { data: existingAttendees, error: readError } = await supabase
+            .from('event_attendees')
+            .select('user_id, status, is_attendee, is_editor')
+            .eq('event_id', eventId);
+        if (readError) throw new Error(readError.message);
+
+        const diff = computeParticipantDiff((existingAttendees || []).map(a => a.user_id), attendees);
+
+        if (diff.toDelete.length > 0) {
+            const { error: deleteError } = await supabase
+                .from('event_attendees')
+                .delete()
+                .eq('event_id', eventId)
+                .in('user_id', diff.toDelete);
+            if (deleteError) throw new Error(deleteError.message);
+        }
+
+        if (diff.toInsert.length > 0) {
+            // Same row shape as before: status / is_attendee / is_editor
+            // come from the DB defaults ('pending' / true / false).
+            const { error: insertError } = await supabase.from('event_attendees').insert(
+                diff.toInsert.map(aId => ({ event_id: eventId, user_id: aId }))
             );
+            if (insertError) throw new Error(insertError.message);
         }
     }
 
     // Update viewers
     if (viewers !== undefined) {
-        await supabase.from('event_viewers').delete().eq('event_id', eventId);
-        if (viewers.length > 0) {
-            await supabase.from('event_viewers').insert(
-                viewers.map(vId => ({ event_id: eventId, user_id: vId }))
+        const { data: existingViewers, error: readError } = await supabase
+            .from('event_viewers')
+            .select('user_id')
+            .eq('event_id', eventId);
+        if (readError) throw new Error(readError.message);
+
+        const diff = computeParticipantDiff((existingViewers || []).map(v => v.user_id), viewers);
+
+        if (diff.toDelete.length > 0) {
+            const { error: deleteError } = await supabase
+                .from('event_viewers')
+                .delete()
+                .eq('event_id', eventId)
+                .in('user_id', diff.toDelete);
+            if (deleteError) throw new Error(deleteError.message);
+        }
+
+        if (diff.toInsert.length > 0) {
+            const { error: insertError } = await supabase.from('event_viewers').insert(
+                diff.toInsert.map(vId => ({ event_id: eventId, user_id: vId }))
             );
+            if (insertError) throw new Error(insertError.message);
         }
     }
 
@@ -408,7 +505,38 @@ export async function deleteEvent(eventId: string): Promise<void> {
 }
 
 export async function excludeOccurrence(eventId: string, excludedDate: string): Promise<string[]> {
-    // Fetch current exceptions
+    // R15: delegate to the atomic, duplicate-safe DB function
+    // (supabase/security_hardening.sql). The old read-modify-write cycle
+    // below loses updates when two exclusions race: both read the same
+    // recurrence_exceptions array and the last write wins.
+    const { data, error: rpcError } = await supabase.rpc('add_recurrence_exception', {
+        p_event_id: eventId,
+        p_date: excludedDate,
+    });
+
+    if (!rpcError) {
+        // The function returns the resulting recurrence_exceptions array
+        // (unchanged when the date was already excluded); NULL when the
+        // event is not visible/writable for this user.
+        return (data as string[] | null) ?? [];
+    }
+
+    // Fallback: the function may not be deployed yet — PostgREST reports
+    // PGRST202 ("Could not find the function ... in the schema cache") or
+    // PostgreSQL 42883 ("function ... does not exist"). Any other error is
+    // a real failure and is rethrown.
+    const isMissingFunction =
+        rpcError.code === 'PGRST202' ||
+        rpcError.code === '42883' ||
+        /does not exist|could not find the function/i.test(rpcError.message || '');
+    if (!isMissingFunction) throw new Error(rpcError.message);
+
+    console.warn(
+        '[excludeOccurrence] add_recurrence_exception RPC unavailable, falling back to read-modify-write:',
+        rpcError.message
+    );
+
+    // Legacy read-modify-write (deployment fallback only, see R15 note above).
     const { data: existing, error: fetchError } = await supabase
         .from('events')
         .select('recurrence_exceptions')
@@ -805,7 +933,21 @@ export async function deleteTravelLocation(locationId: string): Promise<void> {
 // For endpoints that cannot be migrated to direct Supabase 
 // calls (like Push Notifications which require private keys).
 // ============================================================
-const getApiUrl = () => import.meta.env.VITE_API_URL || '';
+// R14: warn once when the backend URL is missing instead of failing
+// silently on every request (module-level flag so it fires only once).
+let hasWarnedAboutMissingApiUrl = false;
+const getApiUrl = () => {
+    const url = import.meta.env.VITE_API_URL || '';
+    if (!url && !hasWarnedAboutMissingApiUrl) {
+        hasWarnedAboutMissingApiUrl = true;
+        console.warn(
+            '[api] Push notifications and comments require VITE_API_URL to be set. ' +
+            'Add VITE_API_URL=<your backend URL> to .env.local and restart the dev server; ' +
+            'until then, calls to the Express backend will fail.'
+        );
+    }
+    return url;
+};
 
 const getHeaders = async () => {
     const { data: { session } } = await supabase.auth.getSession();

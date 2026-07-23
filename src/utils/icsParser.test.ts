@@ -1,5 +1,19 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import { parseICS } from './icsParser';
+
+// parseICS converts Z-suffixed UTC times to local time, so results depend on
+// the machine timezone. This file pins TZ=UTC, which makes the UTC->local
+// conversion the identity and matches the fixtures below (e.g.
+// '20240101T100000Z' -> '10:00'). Tests that exercise real timezone
+// conversion switch TZ explicitly and restore it afterwards. Node applies
+// process.env.TZ changes at runtime; afterAll restores the original zone
+// (Intl reports the system zone when TZ was unset).
+const SYSTEM_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const ORIGINAL_TZ = process.env.TZ;
+process.env.TZ = 'UTC';
+afterAll(() => {
+  process.env.TZ = ORIGINAL_TZ ?? SYSTEM_TZ;
+});
 
 describe('ICS Parser', () => {
   it('should parse simple event', () => {
@@ -184,5 +198,164 @@ END:VCALENDAR`;
     expect(event?.alerts?.length).toBe(2);
     expect(event?.recurrenceRule).toBe('FREQ=QUARTERLY;BYMONTH=1,4,7,10');
     expect(event?.isTentative).toBe(false);
+  });
+});
+
+describe('ICS Parser — timezones', () => {
+  // Each test sets the zone it needs and restores the previous one
+  // afterwards, so sibling test files in the same worker are unaffected.
+  let savedTz: string | undefined;
+
+  beforeEach(() => {
+    savedTz = process.env.TZ;
+  });
+
+  afterEach(() => {
+    process.env.TZ = savedTz ?? SYSTEM_TZ;
+  });
+
+  it('converts Z-suffixed UTC times to local time (Europe/Berlin)', () => {
+    process.env.TZ = 'Europe/Berlin';
+    // Guard: Berlin is UTC+1 in January — otherwise this test is vacuous.
+    expect(new Date('2024-01-15T12:00:00Z').getHours()).toBe(13);
+
+    const ics = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART:20240115T090000Z
+DTEND:20240115T103000Z
+SUMMARY:UTC Event
+UID:tz-1
+END:VEVENT
+END:VCALENDAR`;
+
+    const event = parseICS(ics);
+    expect(event).toBeDefined();
+    expect(event?.startDate).toBe('2024-01-15');
+    expect(event?.startTime).toBe('10:00'); // 09:00 UTC = 10:00 CET
+    expect(event?.endDate).toBe('2024-01-15');
+    expect(event?.endTime).toBe('11:30');
+  });
+
+  it('shifts the local date when UTC conversion crosses midnight', () => {
+    process.env.TZ = 'Europe/Berlin';
+
+    const ics = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART:20240115T233000Z
+DTEND:20240116T003000Z
+SUMMARY:Late UTC Event
+UID:tz-2
+END:VEVENT
+END:VCALENDAR`;
+
+    const event = parseICS(ics);
+    expect(event).toBeDefined();
+    // 23:30 UTC = 00:30 next day CET — the wall-clock date must move along.
+    expect(event?.startDate).toBe('2024-01-16');
+    expect(event?.startTime).toBe('00:30');
+    expect(event?.endDate).toBe('2024-01-16');
+    expect(event?.endTime).toBe('01:30');
+  });
+
+  it('passes TZID wall clock through unchanged and exposes the TZID', () => {
+    // TZID values are deliberately NOT re-zoned (see parser comment): the
+    // exported wall clock is kept and the TZID is only reported. Verified
+    // under a non-UTC zone to prove no hidden conversion happens.
+    process.env.TZ = 'America/New_York';
+
+    const ics = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART;TZID=Europe/Berlin:20240315T100000
+DTEND;TZID=Europe/Berlin:20240315T110000
+SUMMARY:Zoned Event
+UID:tz-3
+END:VEVENT
+END:VCALENDAR`;
+
+    const event = parseICS(ics);
+    expect(event).toBeDefined();
+    expect(event?.startDate).toBe('2024-03-15');
+    expect(event?.startTime).toBe('10:00');
+    expect(event?.endTime).toBe('11:00');
+    expect(event?.timezone).toBe('Europe/Berlin');
+  });
+
+  it('treats floating times (no Z, no TZID) as wall clock in any zone', () => {
+    process.env.TZ = 'America/New_York';
+
+    const ics = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART:20240101T100000
+DTEND:20240101T110000
+SUMMARY:Floating Event
+UID:tz-4
+END:VEVENT
+END:VCALENDAR`;
+
+    const event = parseICS(ics);
+    expect(event?.startTime).toBe('10:00');
+    expect(event?.endTime).toBe('11:00');
+    expect(event?.timezone).toBeUndefined();
+  });
+
+  it('does not shift DATE-only all-day events across timezones', () => {
+    process.env.TZ = 'Europe/Berlin';
+
+    const ics = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20241026
+DTEND;VALUE=DATE:20241028
+SUMMARY:All Day Multi
+UID:tz-5
+END:VEVENT
+END:VCALENDAR`;
+
+    const event = parseICS(ics);
+    expect(event).toBeDefined();
+    expect(event?.isAllDay).toBe(true);
+    expect(event?.startDate).toBe('2024-10-26');
+    expect(event?.endDate).toBe('2024-10-28');
+    expect(event?.startTime).toBeUndefined();
+    expect(event?.endTime).toBeUndefined();
+    expect(event?.timezone).toBeUndefined();
+  });
+});
+
+describe('ICS Parser — RRULE BYDAY', () => {
+  const icsWithRRule = (rrule: string) => `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART:20240105T100000Z
+DTEND:20240105T110000Z
+SUMMARY:Recurring
+RRULE:${rrule}
+UID:byday-test
+END:VEVENT
+END:VCALENDAR`;
+
+  it('extracts multiple BYDAY codes', () => {
+    const event = parseICS(icsWithRRule('FREQ=WEEKLY;BYDAY=MO,WE,FR'));
+    expect(event?.byday).toEqual(['MO', 'WE', 'FR']);
+  });
+
+  it('extracts a single BYDAY code', () => {
+    const event = parseICS(icsWithRRule('FREQ=WEEKLY;BYDAY=FR'));
+    expect(event?.byday).toEqual(['FR']);
+  });
+
+  it('reduces ordinal BYDAY codes of monthly rules to the weekday code', () => {
+    const event = parseICS(icsWithRRule('FREQ=MONTHLY;BYDAY=1MO,-1FR'));
+    expect(event?.byday).toEqual(['MO', 'FR']);
+  });
+
+  it('leaves byday undefined when BYDAY is absent', () => {
+    const event = parseICS(icsWithRRule('FREQ=WEEKLY;INTERVAL=2'));
+    expect(event?.byday).toBeUndefined();
+    expect(event?.recurrenceRule).toBe('FREQ=WEEKLY;INTERVAL=2');
   });
 });

@@ -1,15 +1,19 @@
 
 import { useState, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { Button } from '@/components/ui/button';
-import { Check, X, Calendar as CalendarIcon, Clock, ChevronRight, ChevronLeft, Loader2, Info } from 'lucide-react';
-import { addDays, format, startOfDay } from 'date-fns';
+import { Check, Clock, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
+import { addDays, format } from 'date-fns';
 import { useEvents } from '@/hooks/useEvents';
 import { useRelationships } from '@/hooks/useRelationships';
+import { useValentineEvent } from '@/hooks/useValentineEvent';
+import { useBirthdayEvent } from '@/hooks/useBirthdayEvent';
 import { useAuth } from '@/contexts/AuthContext';
+import { expandRecurringEvents } from '@/utils/recurrence';
+import { eventBlocksUser, isSpecialEvent } from './freeTimeFinderUtils';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { toast } from 'sonner';
 
 // Type definitions
 interface DayAvailability {
@@ -24,9 +28,16 @@ interface TimeSlot {
 }
 
 export function FreeTimeFinderV2() {
-    const { events, loading: eventsLoading } = useEvents();
+    const { events: rawEvents, loading: eventsLoading } = useEvents();
+    // Inject special events (birthday/valentine) — same pattern as CalendarView
+    const valentineEvents = useValentineEvent(rawEvents);
+    const eventsWithSpecials = useBirthdayEvent(valentineEvents);
     const { relationships, loading: relLoading } = useRelationships();
     const { profile, user } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
+    // True when rendered as the standalone /free-time-v2 route instead of an Index tab
+    const isStandaloneRoute = location.pathname === '/free-time-v2';
 
     // Define loading status early to avoid TDZ in useMemo
     const loading = eventsLoading || relLoading;
@@ -66,6 +77,13 @@ export function FreeTimeFinderV2() {
     const availabilityData = useMemo(() => {
         if (loading || !user) return [];
 
+        // Expand recurring events across the visible 14-day range so series
+        // occurrences block time (special events are already injected above).
+        const events = expandRecurringEvents(eventsWithSpecials, startDate, addDays(startDate, 14));
+
+        // Everyone whose calendar must be free: the current user + selected users
+        const blockingUserIds = [user.id, ...selectedUsers];
+
         const next14Days = Array.from({ length: 14 }, (_, i) => {
             const d = new Date(startDate);
             d.setDate(d.getDate() + i);
@@ -73,32 +91,22 @@ export function FreeTimeFinderV2() {
         });
 
         return next14Days.map(day => {
-            // Define working hours (e.g., 8 AM - 10 PM) or 24h?
-            // Let's assume 8 AM to 10 PM for "Active Hours" check, or just 24h.
-            // Using 24h for calculation simplicity.
-
-            // 1. Get all events for selected users on this day
+            // 1. Get all blocking events for the relevant users on this day.
+            // Only owners and *accepted* attendees block time (eventBlocksUser);
+            // pending/declined attendees and viewers never block.
             const dayEvents = events.filter(e => {
                 const eStart = new Date(e.start_time);
                 const eEnd = new Date(e.end_time);
 
                 // Check date overlap
                 const overlapsDay = eStart < new Date(day.getTime() + 86400000) && eEnd > day;
+                if (!overlapsDay) return false;
 
-                // Check user involvement
-                // Creator OR Attendee (Attendee logic already in useEvents but let's be safe)
-                // Note: useEvents usually returns events for the current user (including shared).
-                // We need to check if the event "blocks" any of the *selectedUsers*.
-                // Ideally, we need events for ALL selected users.
-                // Assuming `events` contains ALL relevant events we can see.
+                // Injected special events (birthday/valentine) belong to the
+                // current user's calendar, so they block their time.
+                if (isSpecialEvent(e)) return true;
 
-                const involvesSelectedUser = selectedUsers.includes(e.user_id) ||
-                    (e.attendees && e.attendees.some((att: any) => selectedUsers.includes(typeof att === 'string' ? att : att.id || att))) ||
-                    // Also check self!
-                    e.user_id === user?.id ||
-                    (e.attendees && e.attendees.some((att: any) => (typeof att === 'string' ? att : att.id || att) === user?.id));
-
-                return overlapsDay && involvesSelectedUser;
+                return blockingUserIds.some(uid => eventBlocksUser(e, uid));
             });
 
             // 2. Calculate free slots
@@ -147,7 +155,7 @@ export function FreeTimeFinderV2() {
                 slots
             };
         });
-    }, [events, selectedUsers, user, startDate]);
+    }, [eventsWithSpecials, selectedUsers, user, startDate, loading]);
 
     const handlePrevPeriod = () => {
         setStartDate(prev => {
@@ -181,36 +189,27 @@ export function FreeTimeFinderV2() {
         return `${fmt(start)} to ${fmt(end)}`;
     }, [startDate]);
 
-    // Handle Create Event
+    // Handle Create Event from a free slot
     const handleCreateFromSlot = (slot: TimeSlot) => {
-        // Save prefill data
+        // Prefill the create form. Dates/times are local wall clock (no UTC
+        // conversion); CreateEvent consumes 'prefillEventData' when it mounts.
         localStorage.setItem('prefillEventData', JSON.stringify({
-            date: slot.start.toISOString().split('T')[0],
-            startTime: formatTime(slot.start),
-            endTime: formatTime(slot.end),
+            date: format(slot.start, 'yyyy-MM-dd'),
+            startTime: format(slot.start, 'HH:mm'),
+            endTime: format(slot.end, 'HH:mm'),
             attendees: selectedUsers.filter(id => id !== user?.id) // Don't add self as attendee
         }));
 
-        // Navigate
-        window.location.href = '/?tab=create'; // Or use CustomEvent if staying in SPA
-        // Since we are different page, we need to go to Index. 
-        // Index uses ?tab=create or we can dispatch payload if loaded.
-        // Actually, CreateEvent checks localStorage on mount.
-        // We just need to navigate to "/" and trigger the tab switch.
-        // Let's try redirecting to / with a query param that Index parses?
-        // Index doesn't parse query params yet.
-        // We can use the 'navigate' hook if we had it, or href.
-        // For now, let's use href and hope Index defaults to Create?
-        // Wait, Index defaults to Calendar.
-        // I should update Index to read URL params.
-        // Or better, just use the CustomEvent + History push if in same Router.
-        // They are separate routes but same RouterProvider.
-        // Implementation:
-        window.dispatchEvent(new CustomEvent('navigateToCreateEvent')); // Just in case
-        window.location.href = '/'; // Simple redirect, user manually clicks create? No that sucks.
-        // Better: We see CreateEvent reads localStorage. 
-        // We need to tell Index to open 'create' tab.
-        localStorage.setItem('activeTab', 'create'); // Maybe Index reads this?
+        setIsModalOpen(false);
+
+        if (isStandaloneRoute) {
+            // Running as the /free-time-v2 route: Index mounts on '/' and
+            // reads the ?tab query param to select its tab.
+            navigate('/?tab=create');
+        } else {
+            // Running as an Index tab: ask Index to switch to its create tab.
+            window.dispatchEvent(new CustomEvent('freecal:switch-tab', { detail: { tab: 'create' } }));
+        }
     };
 
     if (loading) {
@@ -227,17 +226,9 @@ export function FreeTimeFinderV2() {
             <MobileHeader
                 title="Shared Availability"
                 showBack
-                onBack={() => window.location.href = '/'}
+                onBack={() => navigate('/')}
                 rightAction={
                     <div className="flex items-center gap-2">
-                        <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => window.location.href = '/free-time-v1'}
-                            className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white border-0 text-xs h-8"
-                        >
-                            Back to V1
-                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => setSelectedUsers([])}>
                             Clear
                         </Button>

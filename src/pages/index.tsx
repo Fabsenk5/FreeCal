@@ -1,17 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { BottomNav } from '@/components/calendar/BottomNav';
 import { CalendarView } from './CalendarView';
-import { CreateEvent } from './CreateEvent';
-import { FreeTimeFinder } from './FreeTimeFinder';
 import { FreeTimeFinderV2 } from './FreeTimeFinderV2';
 import { Profile } from './Profile';
-import { WorldMap } from './WorldMap';
-import { Toaster } from '@/components/ui/sonner';
 import { EventWithAttendees } from '@/hooks/useEvents';
 import { supabase } from '@/lib/supabase';
 
+// Lazy-load heavy tabs: CreateEvent pulls in the ICS/OCR import chain,
+// WorldMap pulls in leaflet. They load on first visit of the tab.
+// FreeTimeFinderV2 stays eager as a core feature (no suspense flash).
+const CreateEvent = lazy(() => import('./CreateEvent').then(m => ({ default: m.CreateEvent })));
+const WorldMap = lazy(() => import('./WorldMap').then(m => ({ default: m.WorldMap })));
+
+const TabFallback = () => (
+  <div className="flex flex-col h-screen bg-background items-center justify-center">
+    <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+    <p className="text-muted-foreground">Loading...</p>
+  </div>
+);
+
 type ActiveTab = 'calendar' | 'create' | 'worldmap' | 'freetime' | 'profile';
+
+const VALID_TABS: ActiveTab[] = ['calendar', 'create', 'worldmap', 'freetime', 'profile'];
 
 function Index() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('calendar');
@@ -103,6 +115,19 @@ function Index() {
     }
   }, []); // Run once on mount
 
+  // Tab-switch requests from embedded pages (e.g. the Free Time Finder's
+  // "create from slot" flow dispatches 'freecal:switch-tab')
+  useEffect(() => {
+    const handleSwitchTab = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
+      if (tab && VALID_TABS.includes(tab as ActiveTab)) {
+        setActiveTab(tab as ActiveTab);
+      }
+    };
+    window.addEventListener('freecal:switch-tab', handleSwitchTab);
+    return () => window.removeEventListener('freecal:switch-tab', handleSwitchTab);
+  }, []);
+
   const renderContent = () => {
     switch (activeTab) {
       case 'calendar':
@@ -132,9 +157,10 @@ function Index() {
 
   return (
     <div className="min-h-screen bg-background">
-      {renderContent()}
+      <Suspense fallback={<TabFallback />}>
+        {renderContent()}
+      </Suspense>
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
-      <Toaster />
     </div>
   );
 }

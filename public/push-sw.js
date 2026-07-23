@@ -24,7 +24,21 @@ self.addEventListener('push', function(event) {
 
 self.addEventListener('notificationclick', function(event) {
     event.notification.close();
+
+    // Defense-in-depth: only open same-origin URLs (or relative paths that
+    // resolve to this origin). Anything else falls back to the app root.
+    var target = (event.notification.data && event.notification.data.url) || '/';
+    var url;
+    try {
+        url = new URL(target, self.location.origin);
+    } catch (e) {
+        url = new URL('/', self.location.origin);
+    }
+    if (url.origin !== self.location.origin) {
+        url = new URL('/', self.location.origin);
+    }
+
     event.waitUntil(
-        clients.openWindow(event.notification.data.url)
+        clients.openWindow(url.href)
     );
 });

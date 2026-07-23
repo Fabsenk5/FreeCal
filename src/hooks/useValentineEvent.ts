@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useValentine, VALENTINE_MESSAGES } from '@/contexts/ValentineContext';
+import { useValentineMode, VALENTINE_MESSAGES } from '@/contexts/ValentineContext';
 import { EventWithAttendees } from '@/lib/api';
 
 // Valentine's Day 2026 - Feb 14th all day event
@@ -10,7 +10,7 @@ const VALENTINE_DATE = '2026-02-14';
  * Returns augmented events array with Valentine event on Feb 14th
  */
 export function useValentineEvent(events: EventWithAttendees[]): EventWithAttendees[] {
-    const { isValentineMode } = useValentine();
+    const { isValentineMode } = useValentineMode();
 
     return useMemo(() => {
         if (!isValentineMode) {

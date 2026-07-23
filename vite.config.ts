@@ -20,15 +20,34 @@ export default defineConfig(({ mode }) => ({
         importScripts: ['push-sw.js'],
         runtimeCaching: [
           {
-            // Cache auth endpoints with NetworkFirst strategy
-            urlPattern: /^https?:\/\/.*\/api\/auth\/me$/,
+            // Backend API responses (comments/checklists etc.) — NetworkFirst.
+            // Auth- and user-sensitive routes (/api/auth/*, /api/push/*,
+            // /api/users/*, /api/admin/*) are deliberately NOT matched here and
+            // therefore never cached. GET only (workbox default), 5s network
+            // timeout, 5 min TTL.
+            urlPattern: /^https?:\/\/.*\/api\/(?!auth(?:\/|$)|push(?:\/|$)|users(?:\/|$)|admin(?:\/|$)).*/,
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'auth-cache',
-              networkTimeoutSeconds: 30, // Wait 30s for network, then use cache
+              cacheName: 'api-cache',
+              networkTimeoutSeconds: 5,
               expiration: {
-                maxEntries: 1,
-                maxAgeSeconds: 60 * 60, // 1 hour
+                maxEntries: 50,
+                maxAgeSeconds: 5 * 60, // 5 minutes
+              },
+            },
+          },
+          {
+            // Supabase REST (frontend talks to Supabase directly) — NetworkFirst
+            // so offline browsing keeps working with the last loaded data.
+            // GET only, 5s network timeout, 5 min TTL.
+            urlPattern: /^https?:\/\/[^/]*\.supabase\.co\/rest\/v1\/.*/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'supabase-rest-cache',
+              networkTimeoutSeconds: 5,
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 5 * 60, // 5 minutes
               },
               cacheableResponse: {
                 statuses: [0, 200],
@@ -36,15 +55,18 @@ export default defineConfig(({ mode }) => ({
             },
           },
           {
-            // Cache API responses with NetworkFirst
-            urlPattern: /^https?:\/\/.*\/api\/.*/,
-            handler: 'NetworkFirst',
+            // Self-hosted Inter variable font (@fontsource-variable/inter ships
+            // hashed .woff2 assets) — immutable content, cache for a year.
+            urlPattern: /^https?:\/\/.*\.woff2(\?.*)?$/,
+            handler: 'CacheFirst',
             options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 30,
+              cacheName: 'font-cache',
               expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 5 * 60, // 5 minutes
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
               },
             },
           },
@@ -80,6 +102,18 @@ export default defineConfig(({ mode }) => ({
       }
     })
   ].filter(Boolean),
+  // Split the big framework/data vendors out of the entry chunk: they change
+  // far less often than app code, so separate chunks improve long-term caching.
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'supabase-vendor': ['@supabase/supabase-js'],
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

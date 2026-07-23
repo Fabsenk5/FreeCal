@@ -77,7 +77,13 @@ export const getCalendarDays = (year: number, month: number): (Date | null)[] =>
 
 export const addMonths = (date: Date, months: number): Date => {
   const newDate = new Date(date);
+  const dayOfMonth = newDate.getDate();
+  // Move via the 1st of the target month to avoid skipping a month when the
+  // day does not exist there (e.g. Jan 31 + 1 month must not become Mar 2/3),
+  // then clamp the day to the target month's length (Jan 31 -> Feb 28/29).
+  newDate.setDate(1);
   newDate.setMonth(newDate.getMonth() + months);
+  newDate.setDate(Math.min(dayOfMonth, getDaysInMonth(newDate.getFullYear(), newDate.getMonth())));
   return newDate;
 };
 

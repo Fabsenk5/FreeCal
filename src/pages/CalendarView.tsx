@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { InviteInbox } from '@/components/notifications/InviteInbox';
 import { MonthView } from '@/components/calendar/MonthView';
-import { EventList } from '@/components/calendar/EventList';
 import { useEvents } from '@/hooks/useEvents';
 import { useRelationships } from '@/hooks/useRelationships';
-import { getMonthName } from '@/utils/dateUtils';
+import { formatDate, getMonthName } from '@/utils/dateUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { EventCard } from '@/components/calendar/EventCard';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { deleteEvent, excludeOccurrence, EventWithAttendees } from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,6 +23,89 @@ import { expandRecurringEvents } from '@/utils/recurrence';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { EventComments } from '@/components/calendar/EventComments';
 import { EventChecklist } from '@/components/calendar/EventChecklist';
+import { CalendarEvent } from '@/data/mockData';
+import { cn } from '@/lib/utils';
+
+// Events flowing through this view may carry the special-event flag injected
+// by useBirthdayEvent (not part of the shared EventWithAttendees type).
+type ViewEvent = EventWithAttendees & { isBirthdayEvent?: boolean };
+type MappedCalendarEvent = CalendarEvent & { isBirthdayEvent?: boolean };
+
+/** RSVP status of the current user for events they attend (not own events). */
+type MyAttendanceStatus = 'pending' | 'declined' | null;
+
+/**
+ * Resolve the current user's attendee status for an event. Returns null for
+ * own events, non-attendees and events without attendee details (defensive:
+ * missing details -> no visual marking).
+ */
+function getMyAttendanceStatus(event: EventWithAttendees, userId: string | undefined): MyAttendanceStatus {
+  if (!userId || event.user_id === userId) return null;
+  const detail = event.attendees_details?.find((a) => (a.userId ?? a.user_id) === userId);
+  if (!detail) return null;
+  return detail.status === 'pending' || detail.status === 'declined' ? detail.status : null;
+}
+
+/** travel_time is stored as text; only plain minute values are displayable. */
+function parseTravelTime(travelTime: string | null): number | undefined {
+  if (!travelTime) return undefined;
+  const minutes = parseInt(travelTime, 10);
+  return Number.isNaN(minutes) ? undefined : minutes;
+}
+
+/** Map a (possibly expanded recurring) event to the shape the view components expect. */
+function toCalendarEvent(e: ViewEvent, myStatus: MyAttendanceStatus): MappedCalendarEvent {
+  return {
+    id: e.id,
+    title: e.title,
+    description: e.description || '',
+    startDate: new Date(e.start_time),
+    endDate: new Date(e.end_time),
+    isAllDay: e.is_all_day,
+    userId: e.user_id,
+    attendeeIds: e.attendees || [],
+    viewerIds: e.viewers || [],
+    isViewer: e.isViewer,
+    // Declined invitations are visually de-emphasized with a muted color.
+    color: myStatus === 'declined' ? 'hsl(215, 16%, 47%)' : e.creator_color || 'hsl(217, 91%, 60%)',
+    creatorName: e.creator_name,
+    location: e.location || undefined,
+    url: e.url || undefined,
+    travelTime: parseTravelTime(e.travel_time),
+    isTentative: e.is_tentative || false,
+    recurrence: e.recurrence_type && e.recurrence_type !== 'none' ? {
+      frequency: e.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
+      interval: e.recurrence_interval || undefined,
+      endDate: e.recurrence_end_date ? new Date(e.recurrence_end_date) : undefined,
+      daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
+    } : undefined,
+    isValentineEvent: e.isValentineEvent,
+    isBirthdayEvent: e.isBirthdayEvent,
+  };
+}
+
+/** Multi-day aware date filter (date-only comparison, inclusive). */
+function getEventsForDate<T extends { start_time: string; end_time: string }>(events: T[], date: Date | null): T[] {
+  if (!date) return [];
+
+  return events.filter((event) => {
+    const startDate = new Date(event.start_time);
+    const endDate = new Date(event.end_time);
+
+    // Set time to midnight for accurate date-only comparison
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+
+    const eventStart = new Date(startDate);
+    eventStart.setHours(0, 0, 0, 0);
+
+    const eventEnd = new Date(endDate);
+    eventEnd.setHours(0, 0, 0, 0);
+
+    // Event is on this date if the date falls between start and end (inclusive)
+    return checkDate >= eventStart && checkDate <= eventEnd;
+  });
+}
 
 export function CalendarView({
   onEditEvent,
@@ -34,6 +118,7 @@ export function CalendarView({
   onQuickCreate?: (date: Date) => void;
   initialDate?: Date | null;
 }) {
+  const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(initialDate || new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(initialDate || new Date());
 
@@ -47,24 +132,57 @@ export function CalendarView({
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const { events: rawEvents, loading, refreshEvents } = useEvents();
-  const valentineEvents = useValentineEvent(rawEvents); // Inject Valentine event
-  const birthdayEvents = useBirthdayEvent(valentineEvents); // Inject Birthday events
-
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  // Expand recurring events
-  // Determine view range. For month view, it's roughly the whole month + padding.
-  // We can just use a wide enough range for now (e.g. current year +/- 1 month) or strictly current month view.
-  // Ideally, we should calculate based on `currentDate` (view month).
-  const viewStart = new Date(year, month - 1, 1); // Previous month start
-  const viewEnd = new Date(year, month + 2, 0);   // Next month end
+  // View range: visible month +/- 1 month (covers the spill-over weeks of the
+  // month grid). Memoized so the React Query key stays stable across renders;
+  // changing the month moves the range and triggers a new ranged fetch.
+  const viewStart = useMemo(() => new Date(year, month - 1, 1), [year, month]);
+  const viewEnd = useMemo(() => new Date(year, month + 2, 0, 23, 59, 59, 999), [year, month]);
 
-  const events = expandRecurringEvents(birthdayEvents, viewStart, viewEnd);
+  // P4: server-side range filter; recurring series are always included and
+  // their occurrences inside the range are expanded client-side below.
+  const { events: rawEvents, loading, refreshEvents } = useEvents({ rangeStart: viewStart, rangeEnd: viewEnd });
+  const valentineEvents = useValentineEvent(rawEvents); // Inject Valentine event
+  const birthdayEvents = useBirthdayEvent(valentineEvents); // Inject Birthday events
+
+  // Expand recurring events over the same range (memoized — this is the
+  // expensive transformation and must not re-run on unrelated re-renders).
+  const events = useMemo(
+    () => expandRecurringEvents(birthdayEvents, viewStart, viewEnd),
+    [birthdayEvents, viewStart, viewEnd]
+  );
 
   const { relationships, loading: relLoading } = useRelationships();
   const { profile } = useAuth();
+
+  // RSVP status of the current user per event id (R19: pending/declined marking).
+  const myAttendanceById = useMemo(() => {
+    const map = new Map<string, 'pending' | 'declined'>();
+    for (const e of events) {
+      const status = getMyAttendanceStatus(e, profile?.id);
+      if (status) map.set(e.id, status);
+    }
+    return map;
+  }, [events, profile?.id]);
+
+  const monthEvents = useMemo(
+    () => events.map((e) => toCalendarEvent(e, myAttendanceById.get(e.id) ?? null)),
+    [events, myAttendanceById]
+  );
+
+  const selectedDateEvents = useMemo(
+    () => getEventsForDate(events, selectedDate),
+    [events, selectedDate]
+  );
+
+  const sortedSelectedDateEvents = useMemo(
+    () => [...selectedDateEvents].sort(
+      (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+    ),
+    [selectedDateEvents]
+  );
 
   const handlePrevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
@@ -80,31 +198,9 @@ export function CalendarView({
   };
 
   const selectedEvent = events.find((e) => e.id === selectedEventId);
-
-  // FIXED: Multi-day event filtering
-  const getEventsForDate = (date: Date | null) => {
-    if (!date) return [];
-
-    return events.filter((event) => {
-      const startDate = new Date(event.start_time);
-      const endDate = new Date(event.end_time);
-
-      // Set time to midnight for accurate date-only comparison
-      const checkDate = new Date(date);
-      checkDate.setHours(0, 0, 0, 0);
-
-      const eventStart = new Date(startDate);
-      eventStart.setHours(0, 0, 0, 0);
-
-      const eventEnd = new Date(endDate);
-      eventEnd.setHours(0, 0, 0, 0);
-
-      // Event is on this date if the date falls between start and end (inclusive)
-      return checkDate >= eventStart && checkDate <= eventEnd;
-    });
-  };
-
-  const selectedDateEvents = selectedDate ? getEventsForDate(selectedDate) : [];
+  const selectedEventStatus: MyAttendanceStatus = selectedEvent
+    ? myAttendanceById.get(selectedEvent.id) ?? null
+    : null;
 
   // FIXED: Edit event handler with proper state passing
   const handleEditEvent = () => {
@@ -140,9 +236,10 @@ export function CalendarView({
       setSelectedEventId(null);
       setShowDeleteDialog(false);
       refreshEvents();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Delete error:', err);
-      toast.error(`Error: ${err.message}`, {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`Error: ${message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });
@@ -160,9 +257,10 @@ export function CalendarView({
       setSelectedEventId(null);
       setShowDeleteDialog(false);
       refreshEvents();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Exclude occurrence error:', err);
-      toast.error(`Error: ${err.message}`, {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`Error: ${message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });
@@ -215,7 +313,7 @@ export function CalendarView({
             <Button
               variant="default"
               size="sm"
-              onClick={() => window.location.href = '/feature-wishlist'}
+              onClick={() => navigate('/feature-wishlist')}
               className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white border-0 text-xs h-7 px-2"
             >
               Wishlist
@@ -227,7 +325,7 @@ export function CalendarView({
       < div className="flex-1 overflow-y-auto pb-20 px-4" >
         {/* Valentine's Day Countdown */}
         <ValentineCountdown />
-        
+
         {/* Birthday Countdown */}
         <BirthdayCountdown />
 
@@ -293,74 +391,59 @@ export function CalendarView({
         < MonthView
           year={year}
           month={month}
-          events={
-            events.map((e) => ({
-              id: e.id,
-              title: e.title,
-              description: e.description || '',
-              startDate: new Date(e.start_time),
-              endDate: new Date(e.end_time),
-              isAllDay: e.is_all_day,
-              userId: e.user_id,
-              attendeeIds: e.attendees || [],
-              viewerIds: e.viewers || [],
-              isViewer: e.isViewer,
-              color: e.creator_color || 'hsl(217, 91%, 60%)',
-              creatorName: e.creator_name,
-              location: e.location || undefined,
-              url: e.url || undefined,
-              travelTime: e.travel_time || undefined,
-              isTentative: e.is_tentative || false,
-              recurrence: e.recurrence_type && e.recurrence_type !== 'none' ? {
-                frequency: e.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
-                interval: e.recurrence_interval || undefined,
-                endDate: e.recurrence_end_date ? new Date(e.recurrence_end_date) : undefined,
-                daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
-              } : undefined,
-              isValentineEvent: e.isValentineEvent,
-              isBirthdayEvent: e.isBirthdayEvent,
-            }))
-          }
+          events={monthEvents}
           selectedDate={selectedDate}
           onDateSelect={handleDateSelect}
           onQuickCreate={onQuickCreate}
         />
 
-        {/* User Tip */}
         {/* Events for selected date */}
         {
           selectedDate && (
             <div className="mt-6">
-              <EventList
-                date={selectedDate}
-                events={selectedDateEvents.map((e) => ({
-                  id: e.id,
-                  title: e.title,
-                  description: e.description || '',
-                  startDate: new Date(e.start_time),
-                  endDate: new Date(e.end_time),
-                  isAllDay: e.is_all_day,
-                  userId: e.user_id,
-                  attendeeIds: e.attendees || [],
-                  viewerIds: e.viewers || [],
-                  isViewer: e.isViewer,
-                  color: e.creator_color || 'hsl(217, 91%, 60%)',
-                  creatorName: e.creator_name,
-                  location: e.location || undefined,
-                  url: e.url || undefined,
-                  travelTime: e.travel_time || undefined,
-                  isTentative: e.is_tentative || false,
-                  recurrence: e.recurrence_type && e.recurrence_type !== 'none' ? {
-                    frequency: e.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
-                    interval: e.recurrence_interval || undefined,
-                    endDate: e.recurrence_end_date ? new Date(e.recurrence_end_date) : undefined,
-                    daysOfWeek: e.recurrence_days?.map(d => parseInt(d)) || undefined,
-                  } : undefined,
-                  isValentineEvent: e.isValentineEvent,
-                  isBirthdayEvent: e.isBirthdayEvent,
-                }))}
-                onEventClick={(event) => setSelectedEventId(event.id)}
-              />
+              {sortedSelectedDateEvents.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 px-4">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3">
+                    <span className="text-3xl">📅</span>
+                  </div>
+                  <p className="text-sm font-medium text-foreground mb-1">No events</p>
+                  <p className="text-xs text-muted-foreground text-center">
+                    You have no events scheduled for {formatDate(selectedDate)}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <h2 className="text-sm font-semibold text-muted-foreground px-1 mb-3">
+                    {formatDate(selectedDate)}
+                  </h2>
+                  {sortedSelectedDateEvents.map((e) => {
+                    const status = myAttendanceById.get(e.id) ?? null;
+                    return (
+                      <div
+                        key={e.id}
+                        className={cn(
+                          'relative',
+                          status === 'pending' && 'opacity-70',
+                          status === 'declined' && 'opacity-50'
+                        )}
+                      >
+                        {status && (
+                          <Badge
+                            variant={status === 'pending' ? 'outline' : 'secondary'}
+                            className="absolute top-2 right-2 z-10 px-1.5 py-0 text-[10px]"
+                          >
+                            {status === 'pending' ? 'Pending' : 'Declined'}
+                          </Badge>
+                        )}
+                        <EventCard
+                          event={toCalendarEvent(e, status)}
+                          onClick={() => setSelectedEventId(e.id)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )
         }
@@ -380,36 +463,26 @@ export function CalendarView({
                   <TabsTrigger value="checklist">Checklist</TabsTrigger>
                   <TabsTrigger value="comments">Comments</TabsTrigger>
                 </TabsList>
-                
+
                 <TabsContent value="info" className="space-y-4">
-                  <EventCard
-                    event={{
-                      id: selectedEvent.id,
-                      title: selectedEvent.title,
-                      description: selectedEvent.description || '',
-                      startDate: new Date(selectedEvent.start_time),
-                      endDate: new Date(selectedEvent.end_time),
-                      isAllDay: selectedEvent.is_all_day,
-                      userId: selectedEvent.user_id,
-                      attendeeIds: selectedEvent.attendees || [],
-                      viewerIds: selectedEvent.viewers || [],
-                      isViewer: selectedEvent.isViewer,
-                      color: selectedEvent.creator_color || 'hsl(217, 91%, 60%)',
-                      creatorName: selectedEvent.creator_name,
-                      location: selectedEvent.location || undefined,
-                      url: selectedEvent.url || undefined,
-                      travelTime: selectedEvent.travel_time || undefined,
-                      isTentative: selectedEvent.is_tentative || false,
-                      recurrence: selectedEvent.recurrence_type && selectedEvent.recurrence_type !== 'none' ? {
-                        frequency: selectedEvent.recurrence_type as 'daily' | 'weekly' | 'monthly' | 'custom',
-                        interval: selectedEvent.recurrence_interval || undefined,
-                        endDate: selectedEvent.recurrence_end_date ? new Date(selectedEvent.recurrence_end_date) : undefined,
-                        daysOfWeek: selectedEvent.recurrence_days?.map(d => parseInt(d)) || undefined,
-                      } : undefined,
-                      isValentineEvent: selectedEvent.isValentineEvent,
-                      isBirthdayEvent: selectedEvent.isBirthdayEvent,
-                    }}
-                  />
+                  {selectedEventStatus && (
+                    <div className="flex items-center gap-2">
+                      <Badge variant={selectedEventStatus === 'pending' ? 'outline' : 'secondary'}>
+                        {selectedEventStatus === 'pending' ? 'Pending' : 'Declined'}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {selectedEventStatus === 'pending'
+                          ? 'You have not responded to this invitation yet.'
+                          : 'You declined this invitation.'}
+                      </span>
+                    </div>
+                  )}
+                  <div className={cn(
+                    selectedEventStatus === 'pending' && 'opacity-70',
+                    selectedEventStatus === 'declined' && 'opacity-50'
+                  )}>
+                    <EventCard event={toCalendarEvent(selectedEvent, selectedEventStatus)} />
+                  </div>
                   <div className="flex gap-2">
                     {/* Allow editing/deleting own events */}
                     {profile && selectedEvent.user_id === profile.id && (

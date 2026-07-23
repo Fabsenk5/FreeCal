@@ -13,9 +13,10 @@ jobs:
       - name: Ping Render Backend
         run: |
           echo "Pinging Render backend to prevent cold start..."
-          curl -s -o /dev/null -w "Backend: %{http_code} in %{time_total}s\n" https://freecal.onrender.com/health || echo "Backend ping failed"
-          
+          # --fail makes curl exit non-zero on HTTP errors, failing the workflow
+          curl --fail -sS -o /dev/null -w "Backend: %{http_code} in %{time_total}s\n" https://freecal-backend.onrender.com/health
+
       - name: Ping Vercel Frontend (optional)
         run: |
           echo "Pinging Vercel frontend..."
-          curl -s -o /dev/null -w "Frontend: %{http_code} in %{time_total}s\n" https://freecal.vercel.app/ || echo "Frontend ping failed"
+          curl --fail -sS -o /dev/null -w "Frontend: %{http_code} in %{time_total}s\n" https://freecal.vercel.app/

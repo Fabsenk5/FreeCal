@@ -482,8 +482,9 @@ export function Profile() {
         {/* Pending Requests */}
         <PendingRequestsSection />
 
-        {/* Admin Panel for admin users */}
-        {['fabiank5@hotmail.com', 'fabiank5@hotmaill.com'].includes(profile?.email || '') && (
+        {/* Admin Panel for admin users: prefer profiles.is_admin, with a documented
+            fallback to the known admin email in case the flag is not yet maintained in the live DB */}
+        {(profile?.is_admin === true || user?.email === 'fabiank5@hotmail.com') && (
           <div className="mb-6">
             <AdminValentineToggle />
             <AdminBirthdayToggle />

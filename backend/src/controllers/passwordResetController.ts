@@ -7,11 +7,24 @@ import bcrypt from 'bcryptjs';
 
 // Mock email sender for now - in production this would use Nodemailer/SendGrid
 const sendResetEmail = async (email: string, token: string) => {
-    const resetLink = `http://localhost:5173/reset-password?token=${token}`; // TODO: Use env var for frontend URL
+    // Base URL comes from env in production; localhost fallback is for local dev only.
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetLink = `${frontendUrl}/reset-password?token=${token}`;
     console.log(`[EMAIL MOCK] Password Reset requested for ${email}`);
-    console.log(`[EMAIL MOCK] Reset Link: ${resetLink}`);
+    if (process.env.NODE_ENV === 'production') {
+        // Never log the token (or full link) in production logs
+        console.log('[EMAIL MOCK] Reset link generated (token redacted). Configure an email service to deliver it.');
+    } else {
+        console.log(`[EMAIL MOCK] Reset Link: ${resetLink}`);
+    }
     // In a real app: await emailService.send(email, template, { link: resetLink });
 };
+
+// Reset tokens are stored as SHA-256 hashes so a DB leak does not expose usable tokens.
+// NOTE: tokens issued before this change were stored in plaintext and are now invalid;
+// affected users simply request a new reset link.
+const hashToken = (token: string): string =>
+    crypto.createHash('sha256').update(token).digest('hex');
 
 export const forgotPassword = async (req: Request, res: Response) => {
     const { email } = req.body;
@@ -34,7 +47,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
         await db.update(profiles)
             .set({
-                resetToken: token,
+                resetToken: hashToken(token),
                 resetTokenExpires: expires
             })
             .where(eq(profiles.id, user.id));
@@ -56,15 +69,8 @@ export const resetPassword = async (req: Request, res: Response) => {
     }
 
     try {
-        // Find user with valid token
-        const users = await db.select().from(profiles); // Inefficient scan, but Drizzle doesn't have easy 'where' for dynamic fields without iterating or raw sql if we don't index locally. 
-        // Better: use .where() properly.
-
-        // Wait, I can use .where() with and()
-        // But first I need to find *by token*.
-        // Since token is unique enough for this purpose (random hex).
-
-        const [user] = await db.select().from(profiles).where(eq(profiles.resetToken, token));
+        // Find user by hashed token
+        const [user] = await db.select().from(profiles).where(eq(profiles.resetToken, hashToken(token)));
 
         if (!user) {
             return res.status(400).json({ message: 'Invalid or expired token' });

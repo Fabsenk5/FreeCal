@@ -17,12 +17,15 @@ describe('E2E Database Tests - Events Schema', () => {
   const testEventIds: string[] = [];
 
   beforeAll(async () => {
-    // Clean up any test data from previous runs
+    // Clean up any test data from previous runs.
+    // IMPORTANT: filter MUST be .eq (only this test user's rows). The previous
+    // .neq filter was inverted and would have wiped all real events if it ever
+    // ran with sufficient privileges.
     try {
       await supabase
         .from('events')
         .delete()
-        .neq('user_id', testUserId);
+        .eq('user_id', testUserId);
     } catch (error) {
       // Ignore cleanup errors
     }

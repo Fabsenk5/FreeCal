@@ -2,15 +2,15 @@ import express from 'express';
 import cors from 'cors';
 import * as dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes';
-// import eventRoutes from './routes/eventRoutes'; // TODO
+import apiRoutes from './routes/apiRoutes';
 import { db } from './db';
 import { sql } from 'drizzle-orm';
-import { warmUpPool, pingDatabase } from './db/connectionPool';
+import { warmUpPool, pingDatabase, closePool } from './db/connectionPool';
 
 
 dotenv.config();
 
-// Keep-alive mechanism to prevent DB sleep (and keep Events table warm)
+// Keep-alive mechanism to prevent DB sleep (uses the shared pool via drizzle)
 const performKeepAlive = async () => {
     try {
         console.log(`[${new Date().toISOString()}] Performing DB keep-alive check...`);
@@ -24,7 +24,7 @@ const performKeepAlive = async () => {
 
 // Run every 14 minutes (keeps Render awake, but allows Neon to sleep)
 const KEEP_ALIVE_INTERVAL = 14 * 60 * 1000;
-setInterval(performKeepAlive, KEEP_ALIVE_INTERVAL);
+const keepAliveTimer = setInterval(performKeepAlive, KEEP_ALIVE_INTERVAL);
 
 // Warm up the connection pool on startup
 warmUpPool().then(() => {
@@ -38,16 +38,36 @@ performKeepAlive();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// CORS: restrict to the configured frontend origin (plus local dev).
+// If FRONTEND_URL is not set, CORS stays open (previous behavior) but we warn loudly.
+if (!process.env.FRONTEND_URL) {
+    console.warn('[Server] FRONTEND_URL is not set - CORS allows ALL origins. Set FRONTEND_URL to your production frontend origin.');
+    app.use(cors());
+} else {
+    const allowedOrigins = [process.env.FRONTEND_URL, 'http://localhost:5173'];
+    app.use(cors({
+        origin: (origin, callback) => {
+            // Allow non-browser requests (no Origin header: curl, health checks, server-to-server)
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(new Error(`Origin ${origin} not allowed by CORS`));
+            }
+        },
+    }));
+}
 app.use(express.json());
 
 // Request Logger
+const SENSITIVE_BODY_FIELDS = ['password', 'newPassword', 'token', 'resetToken'];
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
     if (req.body && Object.keys(req.body).length > 0) {
-        // Don't log passwords
+        // Mask sensitive fields before logging
         const body = { ...req.body };
-        if (body.password) body.password = '***';
+        for (const field of SENSITIVE_BODY_FIELDS) {
+            if (body[field]) body[field] = '***';
+        }
         console.log('Body:', JSON.stringify(body));
     }
     next();
@@ -55,7 +75,6 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
-import apiRoutes from './routes/apiRoutes';
 app.use('/api', apiRoutes);
 
 // Enhanced health endpoint with DB validation
@@ -64,7 +83,7 @@ app.get('/health', async (req, res) => {
     const dbAlive = await pingDatabase();
     const responseTime = Date.now() - startTime;
 
-    res.json({
+    res.status(dbAlive ? 200 : 503).json({
         status: 'ok',
         database: dbAlive ? 'connected' : 'error',
         uptime: process.uptime(),
@@ -73,6 +92,40 @@ app.get('/health', async (req, res) => {
     });
 });
 
-app.listen(PORT, () => {
+// JSON error middleware (must be registered AFTER the routes):
+// returns a generic message to clients, details go to the server log only.
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error(`[${new Date().toISOString()}] Unhandled error on ${req.method} ${req.path}:`, err);
+    if (res.headersSent) return next(err);
+    const status = typeof err?.status === 'number' && err.status >= 400 && err.status < 600 ? err.status : 500;
+    res.status(status).json({ error: status === 500 ? 'Internal server error' : String(err?.message || 'Request failed') });
+});
+
+const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+});
+
+// Graceful shutdown: stop accepting connections, drain, close the DB pool.
+const SHUTDOWN_TIMEOUT_MS = 10 * 1000;
+const shutdown = (signal: string) => {
+    console.log(`[Server] ${signal} received, shutting down gracefully...`);
+    clearInterval(keepAliveTimer);
+
+    const forceExit = setTimeout(() => {
+        console.error('[Server] Graceful shutdown timed out, forcing exit');
+        process.exit(1);
+    }, SHUTDOWN_TIMEOUT_MS);
+    forceExit.unref();
+
+    server.close(async () => {
+        await closePool();
+        console.log('[Server] Shutdown complete');
+        process.exit(0);
+    });
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('unhandledRejection', (reason) => {
+    console.error('[Server] Unhandled promise rejection:', reason);
 });

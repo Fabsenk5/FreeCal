@@ -15,16 +15,16 @@ interface Wish {
     created_at: string;
 }
 
-const ADMIN_EMAIL = 'fabiank5@hotmail.com';
-
 export function FeatureWishlist() {
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
     const [wishes, setWishes] = useState<Wish[]>([]);
     const [loading, setLoading] = useState(true);
     const [newItem, setNewItem] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const isAdmin = user?.email === ADMIN_EMAIL;
+    // Prefer profiles.is_admin, with a documented fallback to the known admin
+    // email in case the flag is not yet maintained in the live DB.
+    const isAdmin = profile?.is_admin === true || user?.email === 'fabiank5@hotmail.com';
 
     useEffect(() => {
         fetchWishes();

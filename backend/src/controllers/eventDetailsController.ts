@@ -15,6 +15,43 @@ function formatDateForNotification(dateInput: string | Date): string {
     }
 }
 
+/**
+ * IDOR guard: the user must be the event owner, an attendee, or a viewer of
+ * the event. supabaseAdmin bypasses RLS, so participation must be checked here.
+ */
+const assertEventAccess = async (userId: string, eventId: string): Promise<boolean> => {
+    try {
+        const { data: event } = await supabaseAdmin
+            .from('events')
+            .select('user_id')
+            .eq('id', eventId)
+            .maybeSingle();
+
+        if (event && event.user_id === userId) return true;
+
+        const { data: attendee } = await supabaseAdmin
+            .from('event_attendees')
+            .select('id')
+            .eq('event_id', eventId)
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        if (attendee) return true;
+
+        const { data: viewer } = await supabaseAdmin
+            .from('event_viewers')
+            .select('id')
+            .eq('event_id', eventId)
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        return !!viewer;
+    } catch (error) {
+        console.error('Error checking event access:', error);
+        return false;
+    }
+};
+
 const notifyEventParticipants = async (eventId: string, senderId: string, senderName: string, title: string, body: string) => {
     try {
         const { data: event } = await supabaseAdmin.from('events').select('user_id, title, start_time').eq('id', eventId).single();
@@ -44,7 +81,12 @@ const notifyEventParticipants = async (eventId: string, senderId: string, sender
 export const eventDetailsController = {
     getComments: async (req: Request, res: Response) => {
         const { eventId } = req.params;
+        const user = (req as any).user;
         try {
+            if (!user || !(await assertEventAccess(user.id, eventId))) {
+                return res.status(403).json({ message: 'Not authorized to view this event' });
+            }
+
             const { data: comments, error } = await supabaseAdmin
                 .from('event_comments')
                 .select('id, event_id, user_id, content, created_at, profiles!event_comments_user_id_fkey(display_name, avatar_url)')
@@ -76,8 +118,12 @@ export const eventDetailsController = {
         const { eventId } = req.params;
         const { content } = req.body;
         const user = (req as any).user;
-        
+
         try {
+            if (!user || !(await assertEventAccess(user.id, eventId))) {
+                return res.status(403).json({ message: 'Not authorized to comment on this event' });
+            }
+
             const { data: newComment, error } = await supabaseAdmin
                 .from('event_comments')
                 .insert({
@@ -116,7 +162,12 @@ export const eventDetailsController = {
     // Checklists
     getChecklist: async (req: Request, res: Response) => {
         const { eventId } = req.params;
+        const user = (req as any).user;
         try {
+            if (!user || !(await assertEventAccess(user.id, eventId))) {
+                return res.status(403).json({ message: 'Not authorized to view this event' });
+            }
+
             const { data: items, error } = await supabaseAdmin
                 .from('event_checklists')
                 .select('*')
@@ -142,8 +193,13 @@ export const eventDetailsController = {
     addChecklistItem: async (req: Request, res: Response) => {
         const { eventId } = req.params;
         const { title } = req.body;
-        
+
         try {
+            const user = (req as any).user;
+            if (!user || !(await assertEventAccess(user.id, eventId))) {
+                return res.status(403).json({ message: 'Not authorized to modify this event' });
+            }
+
             const { data: newItem, error } = await supabaseAdmin
                 .from('event_checklists')
                 .insert({
@@ -152,10 +208,9 @@ export const eventDetailsController = {
                 })
                 .select()
                 .single();
-                
+
             if (error) throw error;
-            
-            const user = (req as any).user;
+
             const senderName = user?.user_metadata?.display_name || user?.email || 'Someone';
             notifyEventParticipants(
                 eventId,
@@ -181,8 +236,26 @@ export const eventDetailsController = {
     updateChecklistItem: async (req: Request, res: Response) => {
         const { id } = req.params;
         const { isCompleted, title } = req.body;
-        
+
         try {
+            const user = (req as any).user;
+
+            // Resolve the event via the item to check participation before writing
+            const { data: existingItem, error: fetchError } = await supabaseAdmin
+                .from('event_checklists')
+                .select('event_id')
+                .eq('id', id)
+                .maybeSingle();
+
+            if (fetchError) throw fetchError;
+            if (!existingItem) {
+                return res.status(404).json({ message: 'Checklist item not found' });
+            }
+
+            if (!user || !(await assertEventAccess(user.id, existingItem.event_id))) {
+                return res.status(403).json({ message: 'Not authorized to modify this event' });
+            }
+
             const updateData: any = {};
             if (isCompleted !== undefined) updateData.is_completed = isCompleted;
             if (title !== undefined) updateData.title = title;
@@ -193,10 +266,9 @@ export const eventDetailsController = {
                 .eq('id', id)
                 .select()
                 .single();
-                
+
             if (error) throw error;
 
-            const user = (req as any).user;
             const senderName = user?.user_metadata?.display_name || user?.email || 'Someone';
             const actionText = isCompleted ? 'completed' : 'updated';
             notifyEventParticipants(
@@ -223,6 +295,24 @@ export const eventDetailsController = {
     deleteChecklistItem: async (req: Request, res: Response) => {
         const { id } = req.params;
         try {
+            const user = (req as any).user;
+
+            // Resolve the event via the item to check participation before writing
+            const { data: existingItem, error: fetchError } = await supabaseAdmin
+                .from('event_checklists')
+                .select('event_id')
+                .eq('id', id)
+                .maybeSingle();
+
+            if (fetchError) throw fetchError;
+            if (!existingItem) {
+                return res.status(404).json({ message: 'Checklist item not found' });
+            }
+
+            if (!user || !(await assertEventAccess(user.id, existingItem.event_id))) {
+                return res.status(403).json({ message: 'Not authorized to modify this event' });
+            }
+
             const { error } = await supabaseAdmin.from('event_checklists').delete().eq('id', id);
             if (error) throw error;
             res.json({ message: 'Item deleted' });
@@ -260,14 +350,14 @@ export const eventDetailsController = {
 
             if (attError) throw attError;
 
-            // Try updating viewer if not attendee
+            // Try updating viewer if not attendee (column is user_id, not viewer_id)
             let updatedView = [];
             if (!updatedAtt || updatedAtt.length === 0) {
                 const { data, error: viewError } = await supabaseAdmin
                     .from('event_viewers')
                     .update({ is_editor: isEditor })
                     .eq('event_id', eventId)
-                    .eq('viewer_id', userId)
+                    .eq('user_id', userId)
                     .select();
                 if (viewError) throw viewError;
                 updatedView = data || [];

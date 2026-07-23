@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '@/App';
 
@@ -8,9 +8,14 @@ vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
-      onAuthStateChange: vi.fn(() => ({
-        data: { subscription: { unsubscribe: vi.fn() } },
-      })),
+      onAuthStateChange: vi.fn((callback) => {
+        // Real Supabase fires INITIAL_SESSION immediately — the app relies on it
+        // to finish the initial loading state.
+        setTimeout(() => callback('INITIAL_SESSION', null), 0);
+        return {
+          data: { subscription: { unsubscribe: vi.fn() } },
+        };
+      }),
     },
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
@@ -33,10 +38,10 @@ describe('Smoke Tests - App Rendering', () => {
     expect(container).toBeTruthy();
   });
 
-  it('should have root div with min-h-screen class', () => {
+  it('should have root div with min-h-screen class', async () => {
     const { container } = render(<App />);
-    const rootDiv = container.querySelector('[class*="min-h-screen"]');
-    expect(rootDiv).toBeTruthy();
+    // AuthProvider gates the app behind an async session load — wait for it.
+    await waitFor(() => expect(container.querySelector('[class*="min-h-screen"]')).toBeTruthy());
   });
 
   it('should render without blank page', () => {
@@ -79,9 +84,9 @@ describe('Smoke Tests - All Pages Render', () => {
 });
 
 describe('Smoke Tests - Component Structure', () => {
-  it('should have proper component hierarchy', () => {
+  it('should have proper component hierarchy', async () => {
     const { container } = render(<App />);
-    expect(container.querySelector('[class*="min-h-screen"]')).toBeTruthy();
+    await waitFor(() => expect(container.querySelector('[class*="min-h-screen"]')).toBeTruthy());
   });
 
   it('should render without console errors', () => {
@@ -126,11 +131,13 @@ describe('Smoke Tests - DOM Structure', () => {
     walk(container);
   });
 
-  it('should render complete HTML tree', () => {
+  it('should render complete HTML tree', async () => {
     const { container } = render(<App />);
-    const html = container.innerHTML;
-    expect(html.length).toBeGreaterThan(100);
-    expect(html).toContain('min-h-screen');
+    await waitFor(() => {
+      const html = container.innerHTML;
+      expect(html.length).toBeGreaterThan(100);
+      expect(html).toContain('min-h-screen');
+    });
   });
 
   it('should have proper styling classes', () => {

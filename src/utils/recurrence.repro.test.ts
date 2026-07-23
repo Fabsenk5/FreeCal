@@ -1,6 +1,19 @@
 import { expandRecurringEvents } from './recurrence';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { EventWithAttendees } from '@/lib/api';
+
+// This repro asserts ISO strings derived from UTC ISO inputs.
+// expandRecurringEvents expands in local wall-clock time (DST-safe), so the
+// fixture's UTC instants would map to different wall-clock weekdays in
+// extreme timezones. Pinning TZ=UTC keeps the original scenario
+// deterministic; the original zone is restored afterwards (see
+// recurrence.test.ts for the same pattern).
+const SYSTEM_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const ORIGINAL_TZ = process.env.TZ;
+process.env.TZ = 'UTC';
+afterAll(() => {
+    process.env.TZ = ORIGINAL_TZ ?? SYSTEM_TZ;
+});
 
 describe('expandRecurringEvents Reproduction', () => {
     it('should expand a weekly event on Friday (Feb 13 2026 -> Feb 20 2026)', () => {
@@ -23,6 +36,7 @@ describe('expandRecurringEvents Reproduction', () => {
             recurrence_interval: 1,
             recurrence_end_date: null,
             recurrence_exceptions: null,
+            recurrence_rule: null,
             user_id: 'u1',
             is_all_day: false,
             color: 'blue',
@@ -38,6 +52,7 @@ describe('expandRecurringEvents Reproduction', () => {
             alerts: null,
             travel_time: null,
             original_calendar_id: null,
+            structured_metadata: null,
             attendees_details: [],
             isViewer: false
         };

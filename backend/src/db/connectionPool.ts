@@ -1,4 +1,9 @@
 import { Pool, PoolConfig } from 'pg';
+import * as dotenv from 'dotenv';
+
+// Load env before creating the pool: this module is imported (and the pool
+// created) before index.ts runs its own dotenv.config().
+dotenv.config();
 
 /**
  * Optimized connection pool for Neon PostgreSQL

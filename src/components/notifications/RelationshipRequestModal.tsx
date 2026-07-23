@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export function RelationshipRequestModal() {
   const { user } = useAuth();
-  const { pendingRequests, loading, acceptRequest, rejectRequest, refreshRelationships } = useRelationshipRequests();
+  const { pendingRequests, loading, acceptRequest, rejectRequest } = useRelationshipRequests();
   const [isOpen, setIsOpen] = useState(false);
   const [currentRequestIndex, setCurrentRequestIndex] = useState(0);
   const [processing, setProcessing] = useState(false);
@@ -38,9 +38,8 @@ export function RelationshipRequestModal() {
     setProcessing(false);
 
     if (success) {
-      // Refresh relationships list
-      refreshRelationships();
-      
+      // acceptRequest already invalidated the relationship queries
+
       // Move to next request or close modal
       if (currentRequestIndex + 1 < pendingRequests.length) {
         setCurrentRequestIndex(currentRequestIndex + 1);

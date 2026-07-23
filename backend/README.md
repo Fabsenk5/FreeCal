@@ -25,7 +25,15 @@ Node.js + Express + Drizzle ORM + Neon (Postgres) backend.
 
 ## API
 
-- `POST /auth/register`: Create account
-- `POST /auth/login`: Login
-- `GET /api/events`: List events (My events + Attending + Viewing)
-- `POST /api/events`: Create event
+- `POST /auth/register`: Create account (rate-limited)
+- `POST /auth/forgot-password` / `POST /auth/reset-password`: Password reset (rate-limited)
+- `GET /auth/me`: Current profile (Bearer Supabase access token)
+- `POST /api/push/subscribe|test|notify`: Web push (rate-limited)
+- `GET|POST /api/events/:eventId/comments`, `GET|POST /api/events/:eventId/checklist`,
+  `PUT|DELETE /api/checklists/:id`, `PUT /api/events/:eventId/editors/:userId`: Event details
+- `GET /api/users/search`, `PUT /api/users/profile`, `GET|PUT|DELETE /api/admin/users*`: Users/Admin
+
+Note: there is no `/auth/login` endpoint — the frontend logs in via Supabase Auth
+directly, and `src/middleware/auth.ts` verifies Supabase access tokens. Events,
+relationships, travel locations and feature wishes are handled by the frontend
+against Supabase (RLS); the old Express controllers for them were removed.

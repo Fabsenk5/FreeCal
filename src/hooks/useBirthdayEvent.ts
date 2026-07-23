@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useBirthday, BIRTHDAY_MESSAGES } from '@/contexts/BirthdayContext';
+import { useBirthdayMode, BIRTHDAY_MESSAGES } from '@/contexts/BirthdayContext';
 import { EventWithAttendees } from '@/lib/api';
 
 const BIRTHDAY_DATE_START = '2026-07-17';
@@ -11,7 +11,7 @@ const BIRTHDAY_DATE_SUNDAY = '2026-07-19';
  * Returns augmented events array with Birthday events for the weekend
  */
 export function useBirthdayEvent(events: EventWithAttendees[]): EventWithAttendees[] {
-    const { isBirthdayMode } = useBirthday();
+    const { isBirthdayMode } = useBirthdayMode();
 
     return useMemo(() => {
         if (!isBirthdayMode) {

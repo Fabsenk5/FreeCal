@@ -1,21 +1,28 @@
+import { lazy } from "react";
 import { createBrowserRouter } from "react-router-dom";
-import Index from '@/pages/index';
-import NotFound from '@/pages/NotFound';
-import { Login } from '@/pages/Login';
-import { Signup } from '@/pages/Signup';
-import ForgotPassword from '@/pages/ForgotPassword';
-import ResetPassword from '@/pages/ResetPassword';
-import { HealthCheck } from '@/pages/HealthCheck';
-import { PendingApproval } from '@/pages/PendingApproval';
-import { FreeTimeFinderV2 } from '@/pages/FreeTimeFinderV2';
-import { FeatureWishlist } from '@/pages/FeatureWishlist';
-import { FreeTimeFinder } from '@/pages/FreeTimeFinder';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { PrivacyPolicy } from '@/pages/PrivacyPolicy';
+import ErrorBoundaryLayout from '@/components/errors/ErrorBoundaryLayout';
+import RootBoundary from '@/components/errors/RootBoundary';
+
+// Pages are lazily loaded so heavy features (maps, wishlist, ...) stay out of
+// the entry chunk. The Suspense boundary lives in ErrorBoundaryLayout.
+const Index = lazy(() => import('@/pages/index'));
+const Login = lazy(() => import('@/pages/Login').then((m) => ({ default: m.Login })));
+const Signup = lazy(() => import('@/pages/Signup').then((m) => ({ default: m.Signup })));
+const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('@/pages/ResetPassword'));
+const HealthCheck = lazy(() => import('@/pages/HealthCheck').then((m) => ({ default: m.HealthCheck })));
+const PendingApproval = lazy(() => import('@/pages/PendingApproval').then((m) => ({ default: m.PendingApproval })));
+const FreeTimeFinderV2 = lazy(() => import('@/pages/FreeTimeFinderV2').then((m) => ({ default: m.FreeTimeFinderV2 })));
+const FeatureWishlist = lazy(() => import('@/pages/FeatureWishlist').then((m) => ({ default: m.FeatureWishlist })));
+const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy').then((m) => ({ default: m.PrivacyPolicy })));
+const NotFound = lazy(() => import('@/pages/NotFound'));
 
 const routes = [
   {
     path: "/",
+    element: <ErrorBoundaryLayout />,
+    errorElement: <RootBoundary />,
     children: [
       {
         index: true,
@@ -58,14 +65,6 @@ const routes = [
         element: (
           <ProtectedRoute>
             <FeatureWishlist />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: "free-time-v1",
-        element: (
-          <ProtectedRoute>
-            <FreeTimeFinder />
           </ProtectedRoute>
         ),
       },

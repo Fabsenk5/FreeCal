@@ -15,7 +15,7 @@ import { createEvent, updateEvent, EventWithAttendees } from '@/lib/api';
 import { parseICS, ParsedEvent } from '@/utils/icsParser';
 import { ImportMethodDialog } from '@/components/calendar/ImportMethodDialog';
 import { ScreenshotImportDialog } from '@/components/calendar/ScreenshotImportDialog';
-import { OCREventData } from '@/utils/calendarOCR';
+import type { OCREventData } from '@/utils/calendarOCR';
 
 interface CreateEventProps {
   eventToEdit?: EventWithAttendees | null;
@@ -56,6 +56,10 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
   const [attendeeStatuses, setAttendeeStatuses] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [conflictingEvents, setConflictingEvents] = useState<EventWithAttendees[]>([]);
+  const [importedTimezone, setImportedTimezone] = useState<string | null>(null);
+  // Set when prefill data (Free Time Finder slot) was applied, so the
+  // initialDate/today auto-prefill does not overwrite it on mount
+  const prefillAppliedRef = useRef(false);
 
   // Convert 12-hour time format to 24-hour
   const convertTo24Hour = (time12: string): string => {
@@ -124,9 +128,10 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
       const start = new Date(eventToEdit.start_time);
       const end = new Date(eventToEdit.end_time);
 
-      setStartDate(start.toISOString().split('T')[0]);
+      // Local date AND local time (no UTC date shift)
+      setStartDate(formatDateForInput(start));
       setStartTime(start.toTimeString().slice(0, 5));
-      setEndDate(end.toISOString().split('T')[0]);
+      setEndDate(formatDateForInput(end));
       setEndTime(end.toTimeString().slice(0, 5));
       setIsAllDay(eventToEdit.is_all_day);
       setRecurrenceType(eventToEdit.recurrence_type);
@@ -152,7 +157,8 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
       setEventColor(eventToEdit.color || eventToEdit.creator_color || profile?.calendar_color || 'hsl(217, 91%, 60%)');
       setNotes(eventToEdit.description || '');
       setLocation(eventToEdit.location || '');
-      setTravelTime(eventToEdit.travel_time || null);
+      // travel_time is typed as string on EventWithAttendees; the form keeps a number.
+      setTravelTime(eventToEdit.travel_time ? Number(eventToEdit.travel_time) || null : null);
       setEventUrl(eventToEdit.url || '');
       setIsTentative(eventToEdit.is_tentative || false);
 
@@ -171,9 +177,17 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
           const data = JSON.parse(prefillData);
           setStartDate(data.date);
           setEndDate(data.date);
-          setStartTime(convertTo24Hour(data.startTime));
-          setEndTime(convertTo24Hour(data.endTime));
+          // Accept both 12h ('2:30 PM', legacy) and 24h ('14:30') time strings
+          const to24Hour = (t: string) => (/am|pm/i.test(t) ? convertTo24Hour(t) : t);
+          setStartTime(to24Hour(data.startTime));
+          setEndTime(to24Hour(data.endTime));
           setAttendees(data.attendees || []);
+          // Mirror prefilled attendees into sharingStatus (the source of
+          // truth for saving) so they are actually pre-selected in the UI
+          const sharing: Record<string, 'attendee' | 'viewer' | 'none'> = {};
+          (data.attendees || []).forEach((id: string) => { sharing[id] = 'attendee'; });
+          setSharingStatus(sharing);
+          prefillAppliedRef.current = true;
 
           localStorage.removeItem('prefillEventData');
           toast.success('Event details pre-filled from free time slot');
@@ -195,6 +209,9 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
   useEffect(() => {
     // Only run for new events (not editing)
     if (eventToEdit) return;
+
+    // Don't overwrite Free Time Finder prefill data applied on mount
+    if (prefillAppliedRef.current) return;
 
     // Check if we already have a date set (from Free Time Finder or previous interaction)
     const hasExistingDate = startDate && startDate !== '';
@@ -418,6 +435,19 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
           setRecurrenceType('daily');
         } else if (parsed.recurrenceRule.includes('FREQ=WEEKLY')) {
           setRecurrenceType('weekly');
+          // Map ICS BYDAY codes to JS getDay() strings ('0'=Sun .. '6'=Sat).
+          // Without BYDAY the weekday of the start date is used (unchanged).
+          if (parsed.byday && parsed.byday.length > 0) {
+            const BYDAY_TO_JS_DAY: Record<string, string> = {
+              SU: '0', MO: '1', TU: '2', WE: '3', TH: '4', FR: '5', SA: '6',
+            };
+            const days = parsed.byday
+              .map(code => BYDAY_TO_JS_DAY[code])
+              .filter((d): d is string => !!d);
+            if (days.length > 0) {
+              setRecurrenceDays(days);
+            }
+          }
         } else if (parsed.recurrenceRule.includes('FREQ=MONTHLY')) {
           setRecurrenceType('monthly');
         } else {
@@ -425,12 +455,19 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
         }
       }
 
+      // Remember the timezone the export declared, to show it as info.
+      // The parser already delivers local wall-clock times, so no timezone
+      // conversion happens here.
+      if (parsed.timezone) {
+        setImportedTimezone(parsed.timezone);
+      }
+
       // Store iOS metadata for later use
       if (parsed.alerts) {
         localStorage.setItem('importedAlerts', JSON.stringify(parsed.alerts));
         // Alerts is string[] in state, but mapped from object in parser?
         // Let's assume we just want to flag that we have alerts, or map them to a simple string representation
-        setAlerts(parsed.alerts.map((a: any) => `${a.type}:${a.minutes}`));
+        setAlerts(parsed.alerts.map(a => `${a.type}:${a.minutes}`));
       }
       if (parsed.attendees) {
         localStorage.setItem('importedAttendees', JSON.stringify(parsed.attendees));
@@ -672,9 +709,10 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
           onEventSaved({ start_time: eventData.start_time });
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Save error:', err);
-      toast.error(`Error: ${err.message}`, {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`Error: ${message}`, {
         description: 'Copy this error and paste in chat for help',
         duration: 10000,
       });
@@ -706,6 +744,8 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
     setTravelTime(null);
     setEventUrl('');
     setIsTentative(false);
+    setImportedTimezone(null);
+    prefillAppliedRef.current = false;
   };
 
   const toggleAttendee = (userId: string) => {
@@ -836,6 +876,13 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
                 ))}
                 {conflictingEvents.length > 3 && <li>+ {conflictingEvents.length - 3} more</li>}
               </ul>
+            </div>
+          )}
+
+          {/* Imported timezone info */}
+          {importedTimezone && (
+            <div className="bg-muted/30 border border-border rounded-lg px-4 py-2 text-xs text-muted-foreground">
+              Imported from a calendar in timezone <span className="font-medium text-foreground">{importedTimezone}</span>. Times are kept as local wall-clock times.
             </div>
           )}
 
