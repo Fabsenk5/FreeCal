@@ -1,5 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { BottomNav } from '@/components/calendar/BottomNav';
 import { CalendarView } from './CalendarView';
@@ -30,6 +31,7 @@ function Index() {
   const [eventToEdit, setEventToEdit] = useState<EventWithAttendees | null>(null);
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
 
   const handleEditEvent = (event: EventWithAttendees) => {
     console.log('Index: Setting event to edit:', event);
@@ -40,6 +42,10 @@ function Index() {
 
   const handleEventSaved = (savedEvent?: { start_time: string }) => {
     setEventToEdit(null);
+    // The calendar tab remounts with the cached events query; without
+    // invalidation React Query serves the pre-edit data while it is still
+    // fresh (staleTime 60s), so a just-saved event appeared unchanged.
+    void queryClient.invalidateQueries({ queryKey: ['events'] });
     if (savedEvent) {
       setSelectedCalendarDate(new Date(savedEvent.start_time));
     } else {

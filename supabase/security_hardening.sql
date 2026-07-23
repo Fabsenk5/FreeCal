@@ -159,11 +159,24 @@ REVOKE EXECUTE ON FUNCTION public.is_approved_user() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.is_approved_user() TO authenticated;
 
 -- === EVENTS ===
+-- NOTE: the SELECT policy must contain a direct row predicate
+-- (auth.uid() = user_id) next to the function-based membership test.
+-- Reason: the frontend inserts via .insert().select() (INSERT ... RETURNING),
+-- which evaluates the SELECT policy on the newly inserted row within the SAME
+-- statement. get_accessible_events() is STABLE and its inner queries run on
+-- the statement-start snapshot, so they cannot see the just-inserted row -
+-- without the direct predicate every INSERT ... RETURNING would fail with
+-- "new row violates row-level security policy for table \"events\"" even for
+-- approved users inserting their own event. Semantics for reads are
+-- unchanged (the function already returns the caller's own events too).
 DROP POLICY IF EXISTS "events_select_own_or_invited" ON public.events;
 CREATE POLICY "events_select_own_or_invited" ON public.events
     FOR SELECT TO authenticated USING (
         public.is_approved_user()
-        AND id IN (SELECT public.get_accessible_events(auth.uid()))
+        AND (
+            auth.uid() = user_id
+            OR id IN (SELECT public.get_accessible_events(auth.uid()))
+        )
     );
 
 DROP POLICY IF EXISTS "events_insert_own" ON public.events;
