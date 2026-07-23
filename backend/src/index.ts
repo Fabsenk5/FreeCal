@@ -40,20 +40,29 @@ const PORT = process.env.PORT || 3000;
 
 // CORS: restrict to the configured frontend origin (plus local dev).
 // If FRONTEND_URL is not set, CORS stays open (previous behavior) but we warn loudly.
+// FRONTEND_URL may contain multiple origins separated by commas (e.g. "https://freecal.vercel.app,https://freecal-preview.vercel.app").
 if (!process.env.FRONTEND_URL) {
     console.warn('[Server] FRONTEND_URL is not set - CORS allows ALL origins. Set FRONTEND_URL to your production frontend origin.');
-    app.use(cors());
+    app.use(cors({ credentials: true }));
 } else {
-    const allowedOrigins = [process.env.FRONTEND_URL, 'http://localhost:5173'];
+    const allowedOrigins = [
+        ...process.env.FRONTEND_URL.split(',').map(o => o.trim()),
+        'http://localhost:5173',
+    ];
+    console.log('[Server] CORS allowed origins:', allowedOrigins);
     app.use(cors({
         origin: (origin, callback) => {
             // Allow non-browser requests (no Origin header: curl, health checks, server-to-server)
             if (!origin || allowedOrigins.includes(origin)) {
                 callback(null, true);
             } else {
+                console.warn(`[CORS] Blocked request from origin: ${origin}`);
                 callback(new Error(`Origin ${origin} not allowed by CORS`));
             }
         },
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
     }));
 }
 app.use(express.json());
