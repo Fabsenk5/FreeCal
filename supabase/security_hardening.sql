@@ -417,50 +417,64 @@ CREATE POLICY "push_subscriptions_delete_own" ON public.push_subscriptions
 -- === EVENT COMMENTS ===
 -- Event participants (owner/attendee/viewer) can read and post comments;
 -- authors can only edit/delete their own comments.
+-- Like the core tables in S3, all policies are gated on
+-- public.is_approved_user(): pending/rejected users must not interact with
+-- event content even if they are still a participant of an event.
 ALTER TABLE public.event_comments ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "event_comments_select_participants" ON public.event_comments;
 CREATE POLICY "event_comments_select_participants" ON public.event_comments
-    FOR SELECT TO authenticated USING (public.is_event_participant(event_id));
+    FOR SELECT TO authenticated USING (
+        public.is_approved_user() AND public.is_event_participant(event_id)
+    );
 
 DROP POLICY IF EXISTS "event_comments_insert_participants" ON public.event_comments;
 CREATE POLICY "event_comments_insert_participants" ON public.event_comments
     FOR INSERT TO authenticated WITH CHECK (
-        public.is_event_participant(event_id) AND user_id = auth.uid()
+        public.is_approved_user()
+        AND public.is_event_participant(event_id)
+        AND user_id = auth.uid()
     );
 
 DROP POLICY IF EXISTS "event_comments_update_own" ON public.event_comments;
 CREATE POLICY "event_comments_update_own" ON public.event_comments
     FOR UPDATE TO authenticated
-    USING (user_id = auth.uid())
-    WITH CHECK (user_id = auth.uid());
+    USING (public.is_approved_user() AND user_id = auth.uid())
+    WITH CHECK (public.is_approved_user() AND user_id = auth.uid());
 
 DROP POLICY IF EXISTS "event_comments_delete_own" ON public.event_comments;
 CREATE POLICY "event_comments_delete_own" ON public.event_comments
-    FOR DELETE TO authenticated USING (user_id = auth.uid());
+    FOR DELETE TO authenticated USING (public.is_approved_user() AND user_id = auth.uid());
 
 -- === EVENT CHECKLISTS ===
 -- Columns (backend/src/db/schema.ts): id, event_id, title, is_completed,
 -- created_at. No user_id column: all event participants may manage items.
+-- Approval-gated like event_comments (see above).
 ALTER TABLE public.event_checklists ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "event_checklists_select_participants" ON public.event_checklists;
 CREATE POLICY "event_checklists_select_participants" ON public.event_checklists
-    FOR SELECT TO authenticated USING (public.is_event_participant(event_id));
+    FOR SELECT TO authenticated USING (
+        public.is_approved_user() AND public.is_event_participant(event_id)
+    );
 
 DROP POLICY IF EXISTS "event_checklists_insert_participants" ON public.event_checklists;
 CREATE POLICY "event_checklists_insert_participants" ON public.event_checklists
-    FOR INSERT TO authenticated WITH CHECK (public.is_event_participant(event_id));
+    FOR INSERT TO authenticated WITH CHECK (
+        public.is_approved_user() AND public.is_event_participant(event_id)
+    );
 
 DROP POLICY IF EXISTS "event_checklists_update_participants" ON public.event_checklists;
 CREATE POLICY "event_checklists_update_participants" ON public.event_checklists
     FOR UPDATE TO authenticated
-    USING (public.is_event_participant(event_id))
-    WITH CHECK (public.is_event_participant(event_id));
+    USING (public.is_approved_user() AND public.is_event_participant(event_id))
+    WITH CHECK (public.is_approved_user() AND public.is_event_participant(event_id));
 
 DROP POLICY IF EXISTS "event_checklists_delete_participants" ON public.event_checklists;
 CREATE POLICY "event_checklists_delete_participants" ON public.event_checklists
-    FOR DELETE TO authenticated USING (public.is_event_participant(event_id));
+    FOR DELETE TO authenticated USING (
+        public.is_approved_user() AND public.is_event_participant(event_id)
+    );
 
 -- ============================================================
 -- R15 - Race-free recurrence exception RPC
