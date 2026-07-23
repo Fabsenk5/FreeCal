@@ -1,6 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, Fragment } from 'react';
 import { CalendarEvent } from '@/data/mockData';
 import { getCalendarDays, getWeekDays, isSameDay, isToday } from '@/utils/dateUtils';
+import { getISOWeek } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 interface MonthViewProps {
@@ -15,6 +16,15 @@ interface MonthViewProps {
 export function MonthView({ year, month, events, selectedDate, onDateSelect, onQuickCreate }: MonthViewProps) {
   const days = getCalendarDays(year, month);
   const weekDays = getWeekDays();
+
+  // ISO calendar week number per grid row, computed from the row's Monday.
+  // The first row's Monday can lie in the previous month (leading null cells);
+  // Date arithmetic with day <= 0 rolls back correctly.
+  const firstDayIndex = (new Date(year, month, 1).getDay() + 6) % 7; // Monday-based
+  const weekNumbers = Array.from(
+    { length: Math.ceil(days.length / 7) },
+    (_, row) => getISOWeek(new Date(year, month, 1 - firstDayIndex + row * 7))
+  );
 
   const getEventsForDate = (date: Date | null): CalendarEvent[] => {
     if (!date) return [];
@@ -47,8 +57,11 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect, onQ
 
   return (
     <div className="bg-card rounded-xl p-4 shadow-sm">
-      {/* Week day headers */}
-      <div className="grid grid-cols-7 gap-1 mb-3">
+      {/* Week day headers (corner cell sits above the KW column) */}
+      <div className="grid grid-cols-[1.25rem_repeat(7,minmax(0,1fr))] gap-1 mb-3">
+        <div className="text-center text-[10px] font-medium text-muted-foreground py-2 select-none">
+          KW
+        </div>
         {weekDays.map(day => (
           <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
             {day}
@@ -56,28 +69,32 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect, onQ
         ))}
       </div>
 
-      {/* Calendar grid */}
-      <div className="grid grid-cols-7 gap-1">
+      {/* Calendar grid with a slim ISO-week gutter on the left */}
+      <div className="grid grid-cols-[1.25rem_repeat(7,minmax(0,1fr))] gap-1">
         {days.map((date, index) => {
-          if (!date) {
-            return <div key={`empty-${index}`} className="aspect-square" />;
-          }
-
-          const dayEvents = getEventsForDate(date);
-          const isSelected = selectedDate && isSameDay(date, selectedDate);
-          const isCurrentDay = isToday(date);
+          const dayEvents = date ? getEventsForDate(date) : [];
+          const isSelected = date ? selectedDate && isSameDay(date, selectedDate) : false;
+          const isCurrentDay = date ? isToday(date) : false;
 
           return (
-            <button
-              key={date.toISOString()}
-              onClick={() => onDateSelect(date)}
-              className={cn(
-                'aspect-square rounded-lg p-1 flex flex-col items-center justify-start transition-all relative group touch-manipulation',
-                'hover:bg-accent active:scale-95',
-                isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
-                isCurrentDay && !isSelected && 'border-2 border-primary'
+            <Fragment key={index}>
+              {index % 7 === 0 && (
+                <div className="flex items-start justify-center pt-1.5 text-[10px] leading-none text-muted-foreground select-none">
+                  {weekNumbers[index / 7]}
+                </div>
               )}
-            >
+              {!date ? (
+                <div className="aspect-square" />
+              ) : (
+                <button
+                  onClick={() => onDateSelect(date)}
+                  className={cn(
+                    'aspect-square rounded-lg p-1 flex flex-col items-center justify-start transition-all relative group touch-manipulation',
+                    'hover:bg-accent active:scale-95',
+                    isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
+                    isCurrentDay && !isSelected && 'border-2 border-primary'
+                  )}
+                >
               {/* Quick Create Button (Desktop hover) */}
               <div
                 role="button"
@@ -120,7 +137,9 @@ export function MonthView({ year, month, events, selectedDate, onDateSelect, onQ
                   )}
                 </div>
               )}
-            </button>
+                </button>
+              )}
+            </Fragment>
           );
         })}
       </div>
