@@ -16,6 +16,8 @@ import { parseMultipleICS, ParsedEvent } from '@/utils/icsParser';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ImportMethodDialog } from '@/components/calendar/ImportMethodDialog';
 import { ScreenshotImportDialog } from '@/components/calendar/ScreenshotImportDialog';
+import { NativeCalendarImport } from '@/components/calendar/NativeCalendarImport';
+import { isNativeApp } from '@/lib/nativeBridge';
 import type { OCREventData } from '@/utils/calendarOCR';
 
 interface CreateEventProps {
@@ -53,6 +55,7 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
   const icsFileInputRef = useRef<HTMLInputElement>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showScreenshotDialog, setShowScreenshotDialog] = useState(false);
+  const [showNativeImportDialog, setShowNativeImportDialog] = useState(false);
   const [sharingStatus, setSharingStatus] = useState<Record<string, 'attendee' | 'viewer' | 'none'>>({});
   const [attendeeStatuses, setAttendeeStatuses] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -570,6 +573,10 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
     icsFileInputRef.current?.click();
   };
 
+  const handleSelectNative = () => {
+    setShowNativeImportDialog(true);
+  };
+
   // NEW: Apply quick template presets
   const applyTemplate = (template: string) => {
     const baseDate = startDate || formatDateForInput(new Date());
@@ -891,6 +898,14 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
         onOpenChange={setShowImportDialog}
         onSelectOCR={handleSelectOCR}
         onSelectICS={handleSelectICS}
+        showNative={isNativeApp()}
+        onSelectNative={handleSelectNative}
+      />
+
+      <NativeCalendarImport
+        open={showNativeImportDialog}
+        onOpenChange={setShowNativeImportDialog}
+        onImport={applyParsedEvent}
       />
 
       {/* Multi-event ICS picker (e.g. full iOS calendar export) */}

@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "FreeCal",
+    "slug": "freecal-native",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "de.freecal.app",
+      "infoPlist": {
+        "NSCalendarsUsageDescription": "FreeCal needs calendar access to import your iOS events and save events to your calendar.",
+        "NSCalendarsFullAccessUsageDescription": "FreeCal needs full calendar access so you can import events from your iOS calendars into your shared FreeCal calendar.",
+        "NSCalendarsWriteOnlyAccessUsageDescription": "FreeCal needs write access so you can save FreeCal events to your iOS calendar."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "FreeCal needs calendar access to import your iOS events and save events to your calendar.",
+          "writeOnlyCalendarPermission": "FreeCal needs write access so you can save FreeCal events to your iOS calendar."
+        }
+      ]
+    ]
+  }
+}

@@ -8,3 +8,7 @@ coverage
 backend/node_modules
 backend/dist
 backend/.env
+.expo
+native/node_modules
+native/dist
+native/.expo

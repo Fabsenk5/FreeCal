@@ -20,7 +20,13 @@ import { BirthdayCountdown } from '@/components/birthday/BirthdayCountdown';
 import { useValentineEvent } from '@/hooks/useValentineEvent';
 import { useBirthdayEvent } from '@/hooks/useBirthdayEvent';
 import { expandRecurringEvents } from '@/utils/recurrence';
-import { eventToICS, downloadICSFile } from '@/utils/icsGenerator';
+import { eventToICS, downloadICSFile, buildRRULE } from '@/utils/icsGenerator';
+import {
+  isNativeApp,
+  pickNativeCalendar,
+  writeNativeEvent,
+  type NativeWriteEvent,
+} from '@/lib/nativeBridge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { EventComments } from '@/components/calendar/EventComments';
 import { EventChecklist } from '@/components/calendar/EventChecklist';
@@ -52,6 +58,27 @@ function parseTravelTime(travelTime: string | null): number | undefined {
   if (!travelTime) return undefined;
   const minutes = parseInt(travelTime, 10);
   return Number.isNaN(minutes) ? undefined : minutes;
+}
+
+/**
+ * Map a FreeCal event to the native write payload. Recurring instances are
+ * written as single events at their occurrence date (no RRULE), so the
+ * exported event matches what the user sees.
+ */
+function toNativeWriteEvent(event: EventWithAttendees, isRecurringInstance: boolean): NativeWriteEvent {
+  return {
+    title: event.title || '(No title)',
+    startDate: event.start_time,
+    endDate: event.end_time,
+    allDay: event.is_all_day,
+    location: event.location || null,
+    notes: event.description || null,
+    url: event.url || null,
+    alarmMinutes: (event.alerts || [])
+      .map((a) => Number(a.minutes))
+      .filter((m) => Number.isFinite(m) && m > 0),
+    rrule: isRecurringInstance ? null : (buildRRULE(event) ?? null),
+  };
 }
 
 /** Map a (possibly expanded recurring) event to the shape the view components expect. */
@@ -279,6 +306,30 @@ export function CalendarView({
     const eventForExport = selectedEvent._originalEventId
       ? { ...selectedEvent, id: selectedEvent._originalEventId }
       : selectedEvent;
+
+    // Inside the native iOS app: insert the event directly into a calendar
+    // the user picks (native calendar picker + pre-filled confirm dialog).
+    if (isNativeApp()) {
+      try {
+        const calendar = await pickNativeCalendar();
+        if (!calendar) return;
+        const result = await writeNativeEvent(
+          calendar.id,
+          toNativeWriteEvent(eventForExport, !!selectedEvent._originalEventId)
+        );
+        if (result.ok) {
+          toast.success(`Added to iOS Calendar "${calendar.title}"`);
+          return;
+        }
+        if (result.error === 'canceled') return;
+        toast.error(result.error || 'Could not add the event to the iOS Calendar');
+        return;
+      } catch (err) {
+        console.error('Native calendar write error:', err);
+        toast.error('Could not add the event to the iOS Calendar');
+        return;
+      }
+    }
 
     const ics = eventToICS(eventForExport);
     const safeTitle = (eventForExport.title || 'event')

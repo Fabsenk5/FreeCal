@@ -34,8 +34,12 @@ The project originated on the Altan platform and was migrated to local developme
 │   │   └── middleware/     # auth.ts (Supabase token verification), rateLimit.ts
 │   └── scripts/            # Migration/import scripts (tsx)
 ├── supabase/               # SQL migrations (migration.sql, fix_rls.sql, security_hardening.sql)
+├── native/                 # Expo iOS wrapper app (own package.json): WebView hosting the web app
+│   │                       # + expo-calendar bridge for direct iOS calendar read/write.
+│   │                       # src/bridgeTypes.ts defines the wire protocol; the web mirror is
+│   │                       # src/lib/nativeBridge.ts + src/utils/nativeEventMapper.ts (keep in sync).
 ├── public/                 # Static assets incl. push-sw.js (push notification SW)
-└── *.md                    # Extensive docs: ARCHITECTURE.md, DEVELOPMENT.md, etc.
+└── *.md                    # Extensive docs: ARCHITECTURE.md, DEVELOPMENT.md, NATIVE_APP.md, etc.
 ```
 
 Note: several `*.backup.tsx` files exist in `src/pages/` — they are historical snapshots, not part of the build's active flow. Do not edit or "fix" them. They are excluded from `tsconfig.app.json`.
