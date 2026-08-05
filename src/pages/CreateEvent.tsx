@@ -12,7 +12,8 @@ import { Calendar, Upload, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { createEvent, updateEvent, EventWithAttendees } from '@/lib/api';
-import { parseICS, ParsedEvent } from '@/utils/icsParser';
+import { parseMultipleICS, ParsedEvent } from '@/utils/icsParser';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ImportMethodDialog } from '@/components/calendar/ImportMethodDialog';
 import { ScreenshotImportDialog } from '@/components/calendar/ScreenshotImportDialog';
 import type { OCREventData } from '@/utils/calendarOCR';
@@ -57,6 +58,9 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [conflictingEvents, setConflictingEvents] = useState<EventWithAttendees[]>([]);
   const [importedTimezone, setImportedTimezone] = useState<string | null>(null);
+  // Multi-event ICS files: parsed events awaiting a user pick in the dialog.
+  const [pendingImports, setPendingImports] = useState<ParsedEvent[] | null>(null);
+  const [selectedImportIndex, setSelectedImportIndex] = useState(0);
   // Set when prefill data (Free Time Finder slot) was applied, so the
   // initialDate/today auto-prefill does not overwrite it on mount
   const prefillAppliedRef = useRef(false);
@@ -404,90 +408,123 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
     }
   }, [startTime, isAllDay, eventToEdit]);
 
+  // Pre-fill the form with a parsed ICS event.
+  const applyParsedEvent = (parsed: ParsedEvent) => {
+    // Pre-fill form with parsed data
+    setTitle(parsed.title);
+    setNotes(parsed.description || '');
+    setStartDate(parsed.startDate);
+    setEndDate(parsed.endDate);
+    setStartTime(parsed.startTime || '');
+    setEndTime(parsed.endTime || '');
+    setIsAllDay(parsed.isAllDay);
+    setNotes(parsed.description || '');
+
+    if (parsed.recurrenceRule) {
+      // Try to detect recurrence type from RRULE
+      if (parsed.recurrenceRule.includes('FREQ=DAILY')) {
+        setRecurrenceType('daily');
+      } else if (parsed.recurrenceRule.includes('FREQ=WEEKLY')) {
+        setRecurrenceType('weekly');
+        // Map ICS BYDAY codes to JS getDay() strings ('0'=Sun .. '6'=Sat).
+        // Without BYDAY the weekday of the start date is used (unchanged).
+        if (parsed.byday && parsed.byday.length > 0) {
+          const BYDAY_TO_JS_DAY: Record<string, string> = {
+            SU: '0', MO: '1', TU: '2', WE: '3', TH: '4', FR: '5', SA: '6',
+          };
+          const days = parsed.byday
+            .map(code => BYDAY_TO_JS_DAY[code])
+            .filter((d): d is string => !!d);
+          if (days.length > 0) {
+            setRecurrenceDays(days);
+          }
+        }
+      } else if (parsed.recurrenceRule.includes('FREQ=MONTHLY')) {
+        setRecurrenceType('monthly');
+      } else {
+        setRecurrenceType('custom');
+      }
+
+      // Map RRULE INTERVAL -> recurrence interval.
+      const intervalMatch = parsed.recurrenceRule.match(/INTERVAL=(\d+)/i);
+      if (intervalMatch) {
+        const interval = parseInt(intervalMatch[1], 10);
+        if (!Number.isNaN(interval) && interval > 0) {
+          setRecurrenceInterval(interval);
+        }
+      }
+
+      // Map RRULE UNTIL -> recurrence end date (YYYY-MM-DD). Z-suffixed
+      // date-times are converted to the local date; plain dates are kept.
+      const untilMatch = parsed.recurrenceRule.match(/UNTIL=(\d{8})(?:T(\d{6})(Z)?)?/i);
+      if (untilMatch) {
+        const yyyymmdd = untilMatch[1];
+        let endDateStr = `${yyyymmdd.slice(0, 4)}-${yyyymmdd.slice(4, 6)}-${yyyymmdd.slice(6, 8)}`;
+        if (untilMatch[2] && untilMatch[3]) {
+          const untilUtc = new Date(`${untilMatch[1]}T${untilMatch[2]}Z`);
+          endDateStr = formatDateForInput(untilUtc);
+        }
+        setRecurrenceEndDate(endDateStr);
+      }
+    }
+
+    // Remember the timezone the export declared, to show it as info.
+    // The parser already delivers local wall-clock times, so no timezone
+    // conversion happens here.
+    if (parsed.timezone) {
+      setImportedTimezone(parsed.timezone);
+    }
+
+    // Store iOS metadata for later use
+    if (parsed.alerts) {
+      localStorage.setItem('importedAlerts', JSON.stringify(parsed.alerts));
+      setAlerts(parsed.alerts.map(a => `${a.type}:${a.minutes}`));
+    }
+    if (parsed.attendees) {
+      localStorage.setItem('importedAttendees', JSON.stringify(parsed.attendees));
+    }
+    if (parsed.isTentative !== undefined) {
+      localStorage.setItem('importedIsTentative', JSON.stringify(parsed.isTentative));
+      setIsTentative(parsed.isTentative);
+    }
+    if (parsed.url) {
+      localStorage.setItem('importedUrl', parsed.url);
+      setEventUrl(parsed.url);
+    }
+    if (parsed.location) {
+      localStorage.setItem('importedLocation', parsed.location);
+      setLocation(parsed.location);
+    }
+
+    toast.success('Event imported successfully!', {
+      description: `Imported: ${parsed.title}. Review and adjust details before saving.`,
+    });
+  };
+
   const handleImportCalendar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.currentTarget.files?.[0];
     if (!file) return;
 
     try {
       const content = await file.text();
-      const parsed = parseICS(content);
+      const parsedEvents = parseMultipleICS(content);
 
-      if (!parsed) {
+      if (parsedEvents.length === 0) {
         toast.error('Could not parse calendar file', {
-          description: 'Please make sure the file is a valid ICSS file.',
+          description: 'Please make sure the file is a valid ICS file.',
         });
         return;
       }
 
-      // Pre-fill form with parsed data
-      setTitle(parsed.title);
-      setNotes(parsed.description || '');
-      setStartDate(parsed.startDate);
-      setEndDate(parsed.endDate);
-      setStartTime(parsed.startTime || '');
-      setEndTime(parsed.endTime || '');
-      setIsAllDay(parsed.isAllDay);
-      setNotes(parsed.description || '');
-
-      if (parsed.recurrenceRule) {
-        // Try to detect recurrence type from RRULE
-        if (parsed.recurrenceRule.includes('FREQ=DAILY')) {
-          setRecurrenceType('daily');
-        } else if (parsed.recurrenceRule.includes('FREQ=WEEKLY')) {
-          setRecurrenceType('weekly');
-          // Map ICS BYDAY codes to JS getDay() strings ('0'=Sun .. '6'=Sat).
-          // Without BYDAY the weekday of the start date is used (unchanged).
-          if (parsed.byday && parsed.byday.length > 0) {
-            const BYDAY_TO_JS_DAY: Record<string, string> = {
-              SU: '0', MO: '1', TU: '2', WE: '3', TH: '4', FR: '5', SA: '6',
-            };
-            const days = parsed.byday
-              .map(code => BYDAY_TO_JS_DAY[code])
-              .filter((d): d is string => !!d);
-            if (days.length > 0) {
-              setRecurrenceDays(days);
-            }
-          }
-        } else if (parsed.recurrenceRule.includes('FREQ=MONTHLY')) {
-          setRecurrenceType('monthly');
-        } else {
-          setRecurrenceType('custom');
-        }
+      // Single event — pre-fill immediately. Multi-event files (typical iOS
+      // calendar exports) open a picker so the user selects which event to
+      // import; the form holds one event at a time.
+      if (parsedEvents.length === 1) {
+        applyParsedEvent(parsedEvents[0]);
+      } else {
+        setPendingImports(parsedEvents);
+        setSelectedImportIndex(0);
       }
-
-      // Remember the timezone the export declared, to show it as info.
-      // The parser already delivers local wall-clock times, so no timezone
-      // conversion happens here.
-      if (parsed.timezone) {
-        setImportedTimezone(parsed.timezone);
-      }
-
-      // Store iOS metadata for later use
-      if (parsed.alerts) {
-        localStorage.setItem('importedAlerts', JSON.stringify(parsed.alerts));
-        // Alerts is string[] in state, but mapped from object in parser?
-        // Let's assume we just want to flag that we have alerts, or map them to a simple string representation
-        setAlerts(parsed.alerts.map(a => `${a.type}:${a.minutes}`));
-      }
-      if (parsed.attendees) {
-        localStorage.setItem('importedAttendees', JSON.stringify(parsed.attendees));
-      }
-      if (parsed.isTentative !== undefined) {
-        localStorage.setItem('importedIsTentative', JSON.stringify(parsed.isTentative));
-        setIsTentative(parsed.isTentative);
-      }
-      if (parsed.url) {
-        localStorage.setItem('importedUrl', parsed.url);
-        setEventUrl(parsed.url);
-      }
-      if (parsed.location) {
-        localStorage.setItem('importedLocation', parsed.location);
-        setLocation(parsed.location);
-      }
-
-      toast.success('Event imported successfully!', {
-        description: `Imported: ${parsed.title}. Review and adjust details before saving.`,
-      });
     } catch (error) {
       console.error('Error importing calendar:', error);
       toast.error('Error importing calendar', {
@@ -497,6 +534,13 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
 
     // Reset file input
     e.currentTarget.value = '';
+  };
+
+  const handlePickImport = () => {
+    if (!pendingImports || !pendingImports[selectedImportIndex]) return;
+    const parsed = pendingImports[selectedImportIndex];
+    setPendingImports(null);
+    applyParsedEvent(parsed);
   };
 
   const handleOCRSuccess = (data: OCREventData) => {
@@ -848,6 +892,53 @@ export function CreateEvent({ eventToEdit, onEventSaved, initialDate }: CreateEv
         onSelectOCR={handleSelectOCR}
         onSelectICS={handleSelectICS}
       />
+
+      {/* Multi-event ICS picker (e.g. full iOS calendar export) */}
+      <Dialog open={!!pendingImports} onOpenChange={(open) => !open && setPendingImports(null)}>
+        <DialogContent className="max-w-[90%] rounded-xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Select Event to Import</DialogTitle>
+            <DialogDescription>
+              This calendar file contains {pendingImports?.length} events. Choose the one you want to import — its
+              details will be pre-filled into the form below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-1.5">
+            {pendingImports?.map((evt, index) => (
+              <label
+                key={`${evt.title}-${index}`}
+                className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer text-sm ${
+                  index === selectedImportIndex ? 'border-primary bg-primary/5' : 'border-border'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="ics-event-pick"
+                  className="mt-0.5 accent-primary"
+                  checked={index === selectedImportIndex}
+                  onChange={() => setSelectedImportIndex(index)}
+                />
+                <span className="min-w-0">
+                  <span className="block font-medium truncate">{evt.title || '(Untitled event)'}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {evt.startDate}
+                    {evt.startTime ? ` · ${evt.startTime}` : ' · All day'}
+                    {evt.isTentative ? ' · Tentative' : ''}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button className="flex-1" onClick={handlePickImport}>
+              Import Selected
+            </Button>
+            <Button variant="outline" onClick={() => setPendingImports(null)}>
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ScreenshotImportDialog
         open={showScreenshotDialog}

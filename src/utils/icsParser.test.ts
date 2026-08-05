@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
-import { parseICS } from './icsParser';
+import { parseICS, unescapeICSValue } from './icsParser';
 
 // parseICS converts Z-suffixed UTC times to local time, so results depend on
 // the machine timezone. This file pins TZ=UTC, which makes the UTC->local
@@ -152,6 +152,32 @@ END:VCALENDAR`;
     const ics = 'INVALID ICS CONTENT';
     const event = parseICS(ics);
     expect(event).toBeNull();
+  });
+
+  it('should unescape escaped TEXT values from the export', () => {
+    const ics = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART:20240101T100000Z
+DTEND:20240101T110000Z
+SUMMARY:Team\\; Meeting\\, "Q1" \\\\ 2024
+DESCRIPTION:Line one\\nLine two
+LOCATION:Room 5\\; Floor 2
+UID:test-esc
+END:VEVENT
+END:VCALENDAR`;
+
+    const event = parseICS(ics);
+    expect(event?.title).toBe('Team; Meeting, "Q1" \\ 2024');
+    expect(event?.description).toBe('Line one\nLine two');
+    expect(event?.location).toBe('Room 5; Floor 2');
+  });
+
+  it('does not mistake an escaped backslash for a newline', () => {
+    // '\\n' in the file = escaped backslash + 'n' (literal '\n' text), not
+    // a newline. unescapeICSValue scans left to right to keep it literal.
+    expect(unescapeICSValue('a\\\\nb')).toBe('a\\nb');
+    expect(unescapeICSValue('a\\nb')).toBe('a\nb');
   });
 
   it('should handle ICS with Windows line endings', () => {
@@ -318,11 +344,30 @@ END:VCALENDAR`;
     const event = parseICS(ics);
     expect(event).toBeDefined();
     expect(event?.isAllDay).toBe(true);
+    // RFC 5545: DTEND of all-day events is exclusive, so the event's last
+    // day is the day BEFORE the DTEND value.
     expect(event?.startDate).toBe('2024-10-26');
-    expect(event?.endDate).toBe('2024-10-28');
+    expect(event?.endDate).toBe('2024-10-27');
     expect(event?.startTime).toBeUndefined();
     expect(event?.endTime).toBeUndefined();
     expect(event?.timezone).toBeUndefined();
+  });
+
+  it('keeps single-day all-day events at the DTSTART date', () => {
+    const ics = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20240101
+DTEND;VALUE=DATE:20240102
+SUMMARY:Birthday
+UID:tz-6
+END:VEVENT
+END:VCALENDAR`;
+
+    const event = parseICS(ics);
+    expect(event?.isAllDay).toBe(true);
+    expect(event?.startDate).toBe('2024-01-01');
+    expect(event?.endDate).toBe('2024-01-01');
   });
 });
 

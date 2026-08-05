@@ -51,6 +51,44 @@ interface ICSProperty {
 
 const pad2 = (n: number): string => String(n).padStart(2, '0');
 
+/**
+ * Unescape a TEXT property value per RFC 5545 (§3.3.11): \n -> newline,
+ * \\ -> backslash, \; -> semicolon, \, -> comma. Scans left to right so that
+ * an escaped backslash followed by 'n' (literal '\n' text) is not mistaken
+ * for a newline.
+ */
+export function unescapeICSValue(value: string): string {
+  let result = '';
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (ch === '\\' && i + 1 < value.length) {
+      const next = value[i + 1];
+      if (next === 'n' || next === 'N') {
+        result += '\n';
+        i++;
+        continue;
+      }
+      if (next === '\\') {
+        result += '\\';
+        i++;
+        continue;
+      }
+      if (next === ';') {
+        result += ';';
+        i++;
+        continue;
+      }
+      if (next === ',') {
+        result += ',';
+        i++;
+        continue;
+      }
+    }
+    result += ch;
+  }
+  return result;
+}
+
 export function parseICS(icsContent: string): ParsedEvent | null {
   try {
     // Normalize line breaks
@@ -114,10 +152,10 @@ export function parseICS(icsContent: string): ParsedEvent | null {
       return properties.filter(p => p.name === key);
     };
 
-    // Parse main properties
-    const summary = getProperty('SUMMARY') || '';
-    const description = getProperty('DESCRIPTION') || '';
-    const location = getProperty('LOCATION') || '';
+    // Parse main properties (TEXT values are unescaped per RFC 5545)
+    const summary = unescapeICSValue(getProperty('SUMMARY') || '');
+    const description = unescapeICSValue(getProperty('DESCRIPTION') || '');
+    const location = unescapeICSValue(getProperty('LOCATION') || '');
     const url = getProperty('URL') || '';
     const rrule = getProperty('RRULE') || '';
     const transp = getProperty('TRANSP') || 'OPAQUE';
@@ -179,6 +217,14 @@ export function parseICS(icsContent: string): ParsedEvent | null {
       }
       if (endMatch) {
         endDate = `${endMatch[1]}-${endMatch[2]}-${endMatch[3]}`;
+      }
+      // RFC 5545: for all-day events DTEND is exclusive — the day AFTER the
+      // last day (Apple and Google both export it that way). Normalize it to
+      // the inclusive last day the app expects.
+      if (endDate && endDate !== startDate) {
+        const endUtc = new Date(`${endDate}T00:00:00Z`);
+        endUtc.setUTCDate(endUtc.getUTCDate() - 1);
+        endDate = `${endUtc.getUTCFullYear()}-${pad2(endUtc.getUTCMonth() + 1)}-${pad2(endUtc.getUTCDate())}`;
       }
     } else {
       // Format: 20231225T100000Z (UTC), 20231225T100000 (floating) or

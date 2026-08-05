@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Download, Loader2 } from 'lucide-react';
 import { useEvents } from '@/hooks/useEvents';
 import { toast } from 'sonner';
+import { eventsToICS, downloadICSFile } from '@/utils/icsGenerator';
 
 export function DataExport() {
   const { events, loading } = useEvents();
@@ -37,31 +38,8 @@ export function DataExport() {
   const handleExportICS = () => {
     setExporting(true);
     try {
-      let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Family Calendar//EN\n";
-      
-      events.forEach(event => {
-        const start = new Date(event.start_time).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-        const end = new Date(event.end_time).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-        const now = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-        
-        icsContent += "BEGIN:VEVENT\n";
-        icsContent += `UID:${event.id}\n`;
-        icsContent += `DTSTAMP:${now}\n`;
-        icsContent += `DTSTART:${start}\n`;
-        icsContent += `DTEND:${end}\n`;
-        icsContent += `SUMMARY:${event.title}\n`;
-        if (event.description) {
-          icsContent += `DESCRIPTION:${event.description.replace(/\n/g, '\\n')}\n`;
-        }
-        if (event.location) {
-          icsContent += `LOCATION:${event.location}\n`;
-        }
-        icsContent += "END:VEVENT\n";
-      });
-      
-      icsContent += "END:VCALENDAR";
-      
-      downloadFile(icsContent, `family-calendar-events-${new Date().toISOString().split('T')[0]}.ics`, 'text/calendar');
+      const ics = eventsToICS(events);
+      downloadICSFile(ics, `family-calendar-events-${new Date().toISOString().split('T')[0]}.ics`);
       toast.success('ICS calendar exported successfully');
     } catch (err) {
       console.error('ICS export error:', err);

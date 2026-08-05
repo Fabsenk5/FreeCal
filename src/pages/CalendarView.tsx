@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, CalendarPlus } from 'lucide-react';
 import { MobileHeader } from '@/components/calendar/MobileHeader';
 import { InviteInbox } from '@/components/notifications/InviteInbox';
 import { MonthView } from '@/components/calendar/MonthView';
@@ -20,6 +20,7 @@ import { BirthdayCountdown } from '@/components/birthday/BirthdayCountdown';
 import { useValentineEvent } from '@/hooks/useValentineEvent';
 import { useBirthdayEvent } from '@/hooks/useBirthdayEvent';
 import { expandRecurringEvents } from '@/utils/recurrence';
+import { eventToICS, downloadICSFile } from '@/utils/icsGenerator';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { EventComments } from '@/components/calendar/EventComments';
 import { EventChecklist } from '@/components/calendar/EventChecklist';
@@ -267,6 +268,40 @@ export function CalendarView({
     }
   };
 
+  // Share a single event with the iOS Calendar: Web Share API with the .ics
+  // file on capable browsers (iOS 15+ opens "Add to Calendar"), download
+  // fallback otherwise.
+  const handleShareToiOS = async () => {
+    if (!selectedEvent) return;
+
+    // Recurring instances carry the original DB id in _originalEventId, so
+    // the exported UID/RRULE refer to the actual stored event.
+    const eventForExport = selectedEvent._originalEventId
+      ? { ...selectedEvent, id: selectedEvent._originalEventId }
+      : selectedEvent;
+
+    const ics = eventToICS(eventForExport);
+    const safeTitle = (eventForExport.title || 'event')
+      .replace(/[\W]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'event';
+    const filename = `${safeTitle}.ics`;
+
+    try {
+      const file = new File([ics], filename, { type: 'text/calendar;charset=utf-8' });
+      if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: eventForExport.title || 'Event' });
+        return;
+      }
+    } catch (err) {
+      // User dismissed the share sheet (AbortError) — fall through to download.
+      console.warn('Web Share failed, falling back to download:', err);
+    }
+
+    downloadICSFile(ics, filename);
+    toast.success('ICS file downloaded — open it on your iPhone to add the event to the iOS Calendar');
+  };
+
   if (loading || relLoading) {
     return (
       <div className="flex flex-col h-screen bg-background items-center justify-center">
@@ -484,6 +519,14 @@ export function CalendarView({
                     <EventCard event={toCalendarEvent(selectedEvent, selectedEventStatus)} />
                   </div>
                   <div className="flex gap-2">
+                    <Button
+                      className="flex-1"
+                      variant="outline"
+                      onClick={handleShareToiOS}
+                    >
+                      <CalendarPlus className="w-4 h-4 mr-2" />
+                      Add to iOS Calendar
+                    </Button>
                     {/* Allow editing/deleting own events */}
                     {profile && selectedEvent.user_id === profile.id && (
                       <>
