@@ -137,7 +137,7 @@ From `DEVELOPMENT.md` and observed conventions:
 
 ## Git Workflow Convention
 
-`.agent/rules/code-change-commit-push-git-guide.md` (always-on rule): after changes are implemented and validated, stage, commit, and push: `git add . ; git commit -m "..." ; git push`.
+Git-Regeln (Push-Pflicht bei verifizierten Änderungen, Conventional Commits) gelten global — siehe globale Konventionen. Lokale Projekt-Detailregeln: `.agent/rules/code-change-commit-push-git-guide.md`.
 
 ## Key Reference Docs
 
