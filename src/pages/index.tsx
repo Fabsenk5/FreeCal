@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase';
 // FreeTimeFinderV2 stays eager as a core feature (no suspense flash).
 const CreateEvent = lazy(() => import('./CreateEvent').then(m => ({ default: m.CreateEvent })));
 const WorldMap = lazy(() => import('./WorldMap').then(m => ({ default: m.WorldMap })));
+const MoodBoards = lazy(() => import('./MoodBoards'));
 
 const TabFallback = () => (
   <div className="flex flex-col h-screen bg-background items-center justify-center">
@@ -22,9 +23,9 @@ const TabFallback = () => (
   </div>
 );
 
-type ActiveTab = 'calendar' | 'create' | 'worldmap' | 'freetime' | 'profile';
+type ActiveTab = 'calendar' | 'create' | 'worldmap' | 'freetime' | 'boards' | 'profile';
 
-const VALID_TABS: ActiveTab[] = ['calendar', 'create', 'worldmap', 'freetime', 'profile'];
+const VALID_TABS: ActiveTab[] = ['calendar', 'create', 'worldmap', 'freetime', 'boards', 'profile'];
 
 function Index() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('calendar');
@@ -111,7 +112,7 @@ function Index() {
     }
 
     if (tab) {
-      const validTabs: ActiveTab[] = ['calendar', 'create', 'worldmap', 'freetime', 'profile'];
+      const validTabs: ActiveTab[] = ['calendar', 'create', 'worldmap', 'freetime', 'boards', 'profile'];
       if (validTabs.includes(tab as ActiveTab)) {
         setActiveTab(tab as ActiveTab);
       }
@@ -149,6 +150,8 @@ function Index() {
         return <WorldMap />;
       case 'freetime':
         return <FreeTimeFinderV2 />;
+      case 'boards':
+        return <MoodBoards />;
       case 'profile':
         return <Profile />;
       default:

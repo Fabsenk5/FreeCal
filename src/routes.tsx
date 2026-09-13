@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import ErrorBoundaryLayout from '@/components/errors/ErrorBoundaryLayout';
 import RootBoundary from '@/components/errors/RootBoundary';
@@ -15,6 +15,7 @@ const HealthCheck = lazy(() => import('@/pages/HealthCheck').then((m) => ({ defa
 const PendingApproval = lazy(() => import('@/pages/PendingApproval').then((m) => ({ default: m.PendingApproval })));
 const FreeTimeFinderV2 = lazy(() => import('@/pages/FreeTimeFinderV2').then((m) => ({ default: m.FreeTimeFinderV2 })));
 const FeatureWishlist = lazy(() => import('@/pages/FeatureWishlist').then((m) => ({ default: m.FeatureWishlist })));
+const MoodBoardDetail = lazy(() => import('@/pages/MoodBoardDetail'));
 const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy').then((m) => ({ default: m.PrivacyPolicy })));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
@@ -65,6 +66,20 @@ const routes = [
         element: (
           <ProtectedRoute>
             <FeatureWishlist />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        // Boards live in the bottom-nav tab system ("?tab=boards"); this
+        // route keeps deep links like /boards working.
+        path: "boards",
+        element: <Navigate to="/?tab=boards" replace />,
+      },
+      {
+        path: "boards/:boardId",
+        element: (
+          <ProtectedRoute>
+            <MoodBoardDetail />
           </ProtectedRoute>
         ),
       },

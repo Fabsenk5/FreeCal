@@ -5,7 +5,7 @@
  * prefix so every mounted consumer updates after a mutation.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchMoodBoards, MoodBoardSummary } from '@/lib/api';
+import { fetchMoodBoardContacts, fetchMoodBoards, MoodBoardContact, MoodBoardSummary } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -36,4 +36,24 @@ export function useMoodBoards() {
   };
 
   return { boards: query.data ?? [], loading: query.isLoading, refreshBoards };
+}
+
+/**
+ * Accepted contacts of the current user — the candidate list for the
+ * share dialog (loaded lazily, only when the dialog opens).
+ */
+export function useMoodBoardContacts(enabled = true) {
+  const { user } = useAuth();
+  const userId = user?.id;
+
+  const query = useQuery({
+    queryKey: ['mood-board-contacts', userId],
+    queryFn: async (): Promise<MoodBoardContact[]> => {
+      if (!userId) throw new Error('Not authenticated');
+      return await fetchMoodBoardContacts(userId);
+    },
+    enabled: enabled && !!userId,
+  });
+
+  return { contacts: query.data ?? [], loading: query.isLoading };
 }

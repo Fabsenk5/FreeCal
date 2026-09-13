@@ -1,9 +1,9 @@
-import { Calendar, Plus, Clock, User, Globe } from 'lucide-react';
+import { Calendar, Plus, Clock, User, Globe, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface BottomNavProps {
-  activeTab: 'calendar' | 'create' | 'worldmap' | 'freetime' | 'profile';
-  onTabChange: (tab: 'calendar' | 'create' | 'worldmap' | 'freetime' | 'profile') => void;
+  activeTab: 'calendar' | 'create' | 'worldmap' | 'freetime' | 'boards' | 'profile';
+  onTabChange: (tab: 'calendar' | 'create' | 'worldmap' | 'freetime' | 'boards' | 'profile') => void;
 }
 
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
@@ -12,6 +12,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
     { id: 'create' as const, label: 'Create', icon: Plus },
     { id: 'worldmap' as const, label: 'Map', icon: Globe },
     { id: 'freetime' as const, label: 'Free Time', icon: Clock },
+    { id: 'boards' as const, label: 'Boards', icon: LayoutGrid },
     { id: 'profile' as const, label: 'Profile', icon: User },
   ];
 

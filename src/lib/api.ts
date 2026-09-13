@@ -970,6 +970,8 @@ export interface MoodBoardPreviewImage {
 export interface MoodBoardSummary {
     id: string;
     owner_id: string;
+    owner_name: string;
+    owner_color: string | null;
     title: string;
     description: string | null;
     category: MoodBoardCategory;
@@ -1139,6 +1141,8 @@ function buildMoodBoardSummary(
     return {
         id: board.id,
         owner_id: board.owner_id,
+        owner_name: profileMap.get(board.owner_id)?.display_name || 'Unknown',
+        owner_color: profileMap.get(board.owner_id)?.calendar_color ?? null,
         title: board.title,
         description: board.description,
         category: board.category as MoodBoardCategory,
@@ -1219,7 +1223,10 @@ export async function fetchMoodBoards(userId: string): Promise<MoodBoardSummary[
     const members = (membersRes.data || []) as MoodBoardMemberRow[];
     const items = (itemsRes.data || []) as MoodBoardPreviewItemRow[];
 
-    const profileMap = await fetchMoodBoardProfileMap(members.map(m => m.user_id));
+    const profileMap = await fetchMoodBoardProfileMap([
+        ...members.map(m => m.user_id),
+        ...boards.map(b => b.owner_id),
+    ]);
     const signedUrls = await createMoodBoardSignedUrlMap(items.map(i => i.preview_path));
 
     const itemsByBoard = new Map<string, MoodBoardPreviewItemRow[]>();
@@ -1300,6 +1307,7 @@ export async function fetchMoodBoard(boardId: string, userId: string): Promise<M
     const profileMap = await fetchMoodBoardProfileMap([
         ...members.map(m => m.user_id),
         ...items.map(i => i.user_id),
+        board.owner_id,
     ]);
     const signedUrls = await createMoodBoardSignedUrlMap([
         ...items.map(i => i.image_path),

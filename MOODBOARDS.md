@@ -1,6 +1,6 @@
 # Mood Boards — Pinterest-style story boards
 
-Status: **foundations implemented** (schema, storage, data layer). UI is the next step.
+Status: **implemented** (schema, storage, data layer, UI). Applied to the production Supabase project.
 
 Mood Boards are shared collections of images for shopping, interior and outfit ideas.
 Unlike calendar events they carry no time information; they are a visual place to collect
@@ -10,7 +10,7 @@ and discuss ideas together (add pins, comment, vote up/down).
 
 | Topic | Decision |
 | :--- | :--- |
-| Entry point | 6th bottom-nav tab **Boards** (route `/boards`), next to Calendar/Create/Map/Free Time/Profile |
+| Entry point | 6th bottom-nav tab **Boards** (deep link `?tab=boards`; `/boards` redirects), detail at `/boards/:boardId` |
 | Board detail | Own route `/boards/:boardId` |
 | Sharing | Per board, with roles: **owner**, **editor**, **viewer** |
 | Rights | Owner: full control + moderation. Editor: add pins, comment, vote, edit/delete **own** pins. Viewer: see, comment, vote (no uploads). |
@@ -110,25 +110,36 @@ Hooks (`src/hooks/`):
 - `useMoodBoards` → `{ boards, loading, refreshBoards }` (query key `['mood-boards', userId]`)
 - `useMoodBoard` → `{ board, items, loading, refreshBoard }` (query key `['mood-board', boardId, userId]`)
 - `useMoodBoardComments` → `{ comments, loading, refreshComments }` (query key `['mood-board-comments', itemId]`)
+- `useMoodBoardContacts` → `{ contacts, loading }` for the share dialog (query key `['mood-board-contacts', userId]`)
 
-The image preparation is tested in `src/utils/imageCompression.test.ts`.
+The image preparation is tested in `src/utils/imageCompression.test.ts`, the mosaic in
+`src/components/moodboards/BoardPreviewMosaic.test.tsx`.
 
-## 7. Next steps (UI phase)
+## 7. UI (implemented)
 
-1. `src/pages/MoodBoards.tsx` (overview) + `src/pages/MoodBoardDetail.tsx`, lazy routes in
-   `src/routes.tsx`, plus the 6th tab in `src/components/calendar/BottomNav.tsx`
-   (`ActiveTab` in `src/pages/index.tsx`, deep link `?tab=boards`).
-2. Components in `src/components/moodboards/`:
-   - `BoardCard.tsx` — 2×2 mosaic (MyCloset `PhotoGrid` adapted to FreeCal colors, Tailwind 3)
-   - `BoardPinsGrid.tsx`, `PinCard.tsx`, `PinDetailDialog.tsx` (full image, vote, comments)
-   - `CreateBoardDialog.tsx`, `ShareBoardDialog.tsx` (contacts + role), `AddPinDialog.tsx`
-3. Toasts via `sonner`, confirmations via existing `AlertDialog`, loading states via skeletons.
-4. Optional afterwards: Realtime subscription, push notifications, cover pin, drag ordering.
+- `src/pages/MoodBoards.tsx` — 2-column tile grid, first batch of 6 boards, loads more
+  while scrolling ("Load more" fallback), create dialog, empty/loading states. Rendered
+  as the 6th bottom-nav tab (`ActiveTab` in `src/pages/index.tsx`, `?tab=boards`);
+  `/boards` redirects there for deep links.
+- `src/pages/MoodBoardDetail.tsx` — board header (category, role badge, member avatars),
+  pin grid, owner menu (edit/share/delete), "leave board" for members.
+- `src/components/moodboards/`:
+  - `BoardCard.tsx` + `BoardPreviewMosaic.tsx` — overview tile with 1–4 image mosaic
+    (MyCloset photo-grid style, adapted to FreeCal colors/Tailwind 3)
+  - `PinCard.tsx`, `PinDetailDialog.tsx` — full image, note/link/price, votes, comments,
+    edit/delete own pins (owner may moderate any pin/comment)
+  - `BoardFormDialog.tsx` (create/edit), `ShareBoardDialog.tsx` (contacts + roles),
+    `AddPinDialog.tsx` (multi-upload with WebP compression)
+  - supporting: `PinVoteButtons.tsx`, `SafeImage.tsx`, `InitialAvatar.tsx`, `labels.ts`
+- Toasts via `sonner`, confirmations via `AlertDialog`, skeletons while loading.
 
-## 8. Rollout
+Remaining ideas: Realtime updates, web-push for board activity, cover pin, drag ordering,
+price sum per board.
 
-1. Run `supabase/moodboards.sql` in the Supabase SQL Editor (idempotent; verification
-   queries at the end of the file).
-2. Deploy frontend as usual (Vercel auto-deploy). No backend/Render changes needed.
+## 8. Rollout (done)
+
+1. `supabase/moodboards.sql` was applied to the production Supabase project via the
+   pooler connection string (session mode). Re-running it is safe (idempotent).
+2. Frontend deploys via Vercel auto-deploy on push; no backend/Render changes needed.
 3. Rollback: drop the five tables and the bucket, or simply leave them in place — the
    policies only ever grant access to approved users.
